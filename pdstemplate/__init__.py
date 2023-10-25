@@ -712,7 +712,11 @@ class PdsTemplate(object):
         """Return the modification time of a file as a formatted string."""
 
         timestamp = os.path.getmtime(filename)
-        utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
+        try:
+            utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
+        except AttributeError:
+            # Python < 3.11
+            utc_dt = datetime.datetime.utcfromtimestamp(timestamp)
         return utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     @staticmethod
