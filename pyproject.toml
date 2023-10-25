@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rms-pdstemplate"
+dynamic = ["version"]
+description = "Class to generate PDS labels based on templates"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "rms-julian",
+    "rms-pdslogger"
+]
+license = {text = "Apache-2.0"}
+maintainers = [
+  {name = "Robert S. French", email = "rfrench@seti.org"}
+]
+keywords = ["pdstemplate"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Natural Language :: English",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Astronomy",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows"
+]
+
+[project.urls]
+Homepage = "https://github.com/SETI/rms-pdstemplate"
+Repository = "https://github.com/SETI/rms-pdstemplate"
+Source = "https://github.com/SETI/rms-pdstemplate"
+Issues = "https://github.com/SETI/rms-pdstemplate/issues"
+
+[tool.setuptools]
+packages = ["pdstemplate"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+write_to = "pdstemplate/_version.py"
