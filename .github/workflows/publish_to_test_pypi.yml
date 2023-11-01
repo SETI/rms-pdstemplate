@@ -24,7 +24,7 @@ jobs:
 
       - name: Test
         run: |
-          python -m unittest pdstemplate
+          python -m pytest
 
       - name: Build
         run: |
