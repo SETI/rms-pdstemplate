@@ -602,7 +602,7 @@ class PdsTemplate(object):
             return 'UNK'
 
         # Convert to day and seconds
-        (day, sec) = julian.day_sec_type_from_string(value)[:2]
+        (day, sec) = julian.day_sec_from_string(value, timesys=True)[:2]
 
         # Retain the number of digits precision in the source, if appropriate
         if digits is None and offset % 1 == 0:
@@ -628,7 +628,8 @@ class PdsTemplate(object):
         if date_type == 'YMD':
             return julian.ymdhms_format_from_day_sec(day, sec, 'T', digits, 'Z')
         elif date_type == 'YD':
-            return julian.ydhms_format_from_day_sec(day, sec, 'T', digits, 'Z')
+            return julian.ydhms_format_from_day_sec(day, sec, sep='T', digits=digits,
+                                                    suffix='Z')
         else:
             return sec
 
