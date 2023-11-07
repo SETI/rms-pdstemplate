@@ -6,7 +6,7 @@
 
 PDS Ring-Moon Systems Node, SETI Institute
 
-Supported versions: Python >= 3.7
+Supported versions: Python >= 3.8
 
 Class to generate PDS labels based on templates.
 
