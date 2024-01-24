@@ -37,10 +37,10 @@ jobs:
       - name: Test with coverage
         run: |
           coverage run -m pytest
+          coverage report -m
 
       - name: Upload coverage report to codecov
         uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
