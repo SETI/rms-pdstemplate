@@ -1,11 +1,13 @@
 ##########################################################################################
-# Class PdsTemplate
+# pdstemplate/__init__.py
 ##########################################################################################
+"""Definition of class PdsTemplate."""
 
 import datetime
 import hashlib
 import numbers
 import os
+import pathlib
 import re
 import string
 import textwrap
@@ -18,9 +20,8 @@ import pdslogger
 
 try:
     from ._version import __version__
-except ImportError as err:
+except ImportError:
     __version__ = 'Version unspecified'
-
 
 ##########################################################################################
 # IMPORTANT: Update the PDSTEMPLATE_VERSION_ID below whenever the behavior of this module
@@ -47,264 +48,62 @@ PDSTEMPLATE_VERSION_ID = '1.0 (2023-06-26)'     # Branched from XmlTemplate
 #   line        the line number of the template in which the header appears;
 #   body        the text immediately following this header and up until the next header.
 #
-# When the template file is first read, it is described by a deque of Section objects. If
+# When the template file is first read, it is described by a deque of _Section objects. If
 # there is no header before the first line of the template, it is assigned a header type
 # of "$ONCE().
-Section = namedtuple('Section', ['header', 'arg', 'line', 'body'])
+_Section = namedtuple('_Section', ['header', 'arg', 'line', 'body'])
 
-NOESCAPE_FLAG = '!!NOESCAPE!!:'     # used internally
+_NOESCAPE_FLAG = '!!NOESCAPE!!:'    # used internally
+
 
 class TemplateError(ValueError):    # class for all template parsing exceptions
     pass
 
-##########################################################################################
 
-class PdsTemplate(object):
+class PdsTemplate:
     """Class to generate PDS labels based on templates.
 
-    The general procedure is as follows.
-
-    1. Create a template object by calling the PdsTemplate constructor to read a template
-       file:
-            template = PdsTemplate(template_file_path)
-    2. Create a dictionary that contains the parameter values to use inside the label.
-    3. Construct the label as follows:
-            template.write(dictionary, label_file)
-    This will create a new label of the given name, using the values in the given
-    dictionary. Once the template has been constructed, steps 2 and 3 can be repeated any
-    number of times.
-
-    SUBSTITUTIONS
-
-    A template file will look generally like a label file, except for certain embedded
-    expressions that will be replaced when the template's write() method is called.
-
-    In general, everything between dollar signs "$" in the template is interpreted as a
-    Python expression to be evaluated. The result of this expression then replaces it
-    inside the label. For example, if dictionary['INSTRUMENT_ID'] = 'ISSWA', then
-        <instrument_id>$INSTRUMENT_ID$</instrument_id>
-    in the template will become
-        <instrument_id>ISSWA</instrument_id>
-    in the label. The expression between "$" in the template can include indexes, function
-    calls, or just about any other Python expression. As another example, using the same
-    dictionary above,
-        <camera_fov>$"Narrow" if INSTRUMENT_ID == "ISSNA" else "Wide"$</camera_fov>
-    in the template will become
-        <camera_fov>Wide</camera_fov>
-    in the label.
-
-    An expression in the template of the form "$name=expression$", where the "name" is a
-    valid Python variable name, will also also have the side-effect of defining this
-    variable so that it can be re-used later in the template. For example, if this appears
-    as an expression,
-        $cruise_or_saturn=('cruise' if START_TIME < 2004 else 'saturn')$
-    then later in the template, one can write:
-        <lid_reference>
-        urn:nasa:pds:cassini_iss_$cruise_or_saturn$:data_raw:cum-index
-        </lid_reference>
-
-    To embed a literal "$" inside a label, enter "$$" into the template.
-
-    PRE-DEFINED FUNCTIONS
-
-    The following pre-defined functions can be used inside any expression in the template.
-
-        BASENAME(filepath):
-            The basename of the given file path, with leading directory paths removed.
-
-        BOOL(value, true='true', false='false'):
-            This value as a PDS4 boolean, typically either "true" or "false".
-
-        COUNTER(name):
-            The current value of a counter of the given name, starting at 1.
-
-        CURRENT_ZULU(date_only=False):
-            The current UTC time as a string of the form "yyyy-mm-ddThh:mm:ssZ".
-
-        DATETIME(string, offset=0, digits=None):
-            Convert the given date/time string to a year-month-day format with a trailing
-            "Z". An optional offset in seconds can be applied. It makes an educated guess
-            at the appropriate number of digits in the fractional seconds if this is not
-            specified explicitly.
-
-        DATETIME_DOY(string):
-            Convert the given date/time string to a year and day of year format with a
-            trailing "Z". Inputs are the same as for DATETIME.
-
-        DAYSECS(string):
-            The number of elapsed seconds since the beginning of the most recent day.
-
-        FILE_BYTES(filepath):
-            The size of the specified file in bytes.
-
-        FILE_MD5(filepath):
-            The MD5 checksum of the specified file.
-
-        FILE_RECORDS(filepath):
-            The number of records in the specified file if it is ASCII; 0 if the file is
-            binary.
-
-        FILE_ZULU(filepath):
-            The UTC modification time of the specified file as a string of the form
-            "yyyy-mm-ddThh:mm:ss.sssZ".
-
-        NOESCAPE(text):
-            Normally, evaluated expressions are "escaped", to ensure that they are
-            suitable for embedding in a PDS label. For example, ">" inside a string
-            in an XML label will be replaced by "&gt;". This function prevents the
-            returned text from being escaped, allowing it to contain literal XML.
-
-        RAISE(exception, message):
-            Raise an exception with the given class and message.
-
-        REPLACE_NA(value, if_na):
-            Return the value of the second argument if the first argument is "N/A";
-            otherwise, return the first value.
-
-        REPLACE_UNK(value, if_unk):
-            Return the value of the second argument if the first argument is "UNK";
-            otherwise, return the first value.
-
-        TEMPLATE_PATH():
-            The directory path to the template file.
-
-        VERSION_ID():
-            Version ID of this module, e.g., "1.0 (2022-10-05)".
-
-        WRAP(left, right, text):
-            Format the text to fit between the given left and right column numbers. The
-            first line is not indented, so the text will begin in the column where "$WRAP"
-            first appears.
-
-    These functions can also be used directly by the programmer; simply import them by
-    name from this module.
-
-    COMMENTS
-    Any text appearing on a line after the symbol "$NOTE:" will not appear in the label.
-    Trailing blanks resulting from this removal are also removed.
-
-    HEADERS
-
-    The template may also contain any number of headers. These appear alone on a line of
-    the template and begin with "$" as the first non-blank character. They determine
-    whether or how subsequent text of the template will appear in the file, from here up
-    to the next header line.
-
-    You can include one or more repetitions of the same text using $FOR and $END_FOR
-    headers. The format is
-        $FOR(expression)
-            <template text>
-        $END_FOR
-    where the expression evaluates to a Python iterable. Within the template text, these
-    new variable names are assigned:
-        VALUE = the next value of the iterator;
-        INDEX = the index of this iterator, starting at zero;
-        LENGTH = the number of items in the iteration.
-    For example, if
-        dictionary["targets"] = ["Jupiter", "Io", "Europa"]
-        dictionary["naif_ids"] = [599, 501, 502],
-    then
-        $FOR(targets)
-            <target_name>$VALUE (naif_ids[INDEX])$</target_name>
-        $END_FOR
-    in the template will become
-            <target_name>Jupiter (599)</target_name>
-            <target_name>Io (501)</target_name>
-            <target_name>Europa (502)</target_name>
-    in the label.
-
-    Instead of using the names "VALUE", "INDEX", and "LENGTH", you can customize the
-    variable names by listing up to three comma-separated names and an equal sign "="
-    before the iterable expression. For example, this will produce the same results as the
-    example above:
-        $FOR(name,k=targets)
-            <target_name>$name (naif_ids[k])$</target_name>
-        $END_FOR
-
-    You can also use $IF, $ELSE_IF, $ELSE, and $END_IF headers to select among
-    alternative blocks of text in the template:
-
-    $IF(expression)         Evaluate the expression and include the next lines of the
-                            template if the expression is logically True (e.g., boolean
-                            True, a nonzero number, a non-empty list or string, etc.).
-    $ELSE_IF(expression)    Include the next lines of the template if this expression is
-                            logically True and every previous expression was not.
-    $ELSE                   Include the next lines of the template only if all prior
-                            expressions were logically False.
-    $END_IF                 This marks the end of the set of if/else alternatives.
-
-    As with other substitutions, you can define a new variable of a specified name by
-    using "name=expression" inside the parentheses of an $IF() or $ELSE_IF() header.
-
-    Note that headers can be nested arbitrarily inside the template.
-
-    You can use the $NOTE and $END_NOTE headers to embed any arbitrary comment block into
-    the template. Any text between these headers does not appear in the label.
-
-    One additional header is supported: $ONCE(expression). This header evaluates the
-    expression but does not alter the handling of subsequent lines of the template. You
-    can use this capability to define variables internally without affecting the content
-    of the label produced. For example:
-
-    $ONCE(date=big_dictionary["key"]["date"])
-
-    will assign the value of the variable named "date" for subsequent use within the
-    template.
-
-    LOGGING AND EXCEPTION HANDLING
-
-    The pdslogger module is used to handle logging. By default, the pdslogger.NullLogger
-    class is used, meaning that no actions are logged. To override, call
-        set_logger(logger)
-    in your Python program to use the specified logger. For example,
-        set_logger(pdslogger.EasyLogger())
-    will log all messages to the terminal.
-
-    By default, exceptions during a call to write() or generate() are handled as follows:
-    1. They are written to the log.
-    2. The template attribute ERROR_COUNT contains the number of exceptions raised.
-    3. The expression that triggered the exception is replaced by the error text in the
-       label, surrounded by "[[[" and "]]]" to make it easier to find.
-    4. The exception is otherwise suppressed.
-
-    This behavior can be modified by calling method raise_exceptions(True). In this case,
-    the call to write() or generate() raises the exception and then halts.
+    See README.md for details.
     """
 
     # This pattern matches a header record;
     #  groups(1) = line number; groups(2) = header; groups(3) = argument in parentheses
-    HEADER_WORDS = ['IF', 'ELSE_IF', 'ELSE', 'END_IF', 'FOR', 'END_FOR', 'ONCE',
-                    'NOTE', 'END_NOTE']
+    _HEADER_WORDS = ['IF', 'ELSE_IF', 'ELSE', 'END_IF', 'FOR', 'END_FOR', 'ONCE',
+                     'NOTE', 'END_NOTE']
 
     # This regular expression splits up the content of the template at the location of
     # each header. For each match, it returns three groups: a leading line number, the
     # header word ("IF", "FOR", etc.), and text inside the parentheses, if any.
-    HEADER_PATTERN = re.compile(r' *\$(\d+):(' + '|'.join(HEADER_WORDS) + ')' +
-                                r'(\(.*\)|) *\n')
+    _HEADER_PATTERN = re.compile(r' *\$(\d+):(' + '|'.join(_HEADER_WORDS) + ')' +
+                                 r'(\(.*\)|) *\n')
 
-    GLOBAL_LOGGER = pdslogger.NullLogger()     # default
+    _GLOBAL_LOGGER = pdslogger.NullLogger()     # default
 
-    def __init__(self, filename, *, content='', logger=None, xml=None):
-        """Construct a PDS4 template object from the contents of a template file.
+    def __init__(self, template, *, content='', logger=None, xml=None):
+        """Construct a PdsTemplate object from the contents of a template file.
 
-        Inputs:
-            filename    Name of the input template file.
-            content     String or list of strings containing the template, instead
-                        of reading from a file.
-            logger      Pdslogger to use.  Default is pdslogger.NullLogger.
-            xml         Set to True to indicate the template is in xml format.  If None,
-                        an attempt is made to detect the format.
+        Parameters:
+            template (str or pathlib.Path):
+                Path of the input template file.
+            content (str or list[str], optional):
+                Alternative source of the template content rather than reading it from a
+                file.
+            logger (pdslogger.Pdslogger, optional):
+                Logger to use. The default is pdslogger.NullLogger, which does no logging.
+            xml (bool, optional):
+                Use True to indicate that the template is in xml format; False otherwise.
+                If not specified, an attempt is made to detect the format from the
+                template.
         """
 
-        logger = logger or PdsTemplate.GLOBAL_LOGGER
+        logger = logger or PdsTemplate._GLOBAL_LOGGER
 
-        self.template_path = filename
+        self.template_path = pathlib.Path(template)
         try:
             # Read the template (if necessary)
             if not content:
-                logger.info('Loading template', filename)
-                with open(filename) as f:
-                    content = f.read()
+                logger.info('Loading template', str(self.template_path))
+                content = self.template_path.read_text()
 
             if isinstance(content, list):
                 content = ''.join(content)
@@ -317,7 +116,8 @@ class PdsTemplate(object):
                 logger.info('Terminator is <LF>')
                 self.terminator = '\n'
             else:
-                raise ValueError('Invalid terminator in template', filename)
+                raise ValueError('Invalid terminator in template: '
+                                 + str(self.template_path))
 
             # Convert to a list
             records = content.split(self.terminator)
@@ -336,8 +136,8 @@ class PdsTemplate(object):
             # line number followed by a colon after each "$" found in the template.
 
             # Insert line numbers after each "$"
-            numbered = [rec.rstrip().replace('$',f'${k+1}:')
-                        for k,rec in enumerate(records)]
+            numbered = [rec.rstrip().replace('$', f'${k+1}:')
+                        for k, rec in enumerate(records)]
 
             # Merge back into a single string
             content = '\n'.join(numbered)
@@ -350,26 +150,24 @@ class PdsTemplate(object):
             # 4: template text from here to the next header line
             # 5: line number of the next header
             # etc.
-            parts = PdsTemplate.HEADER_PATTERN.split(content)
+            parts = PdsTemplate._HEADER_PATTERN.split(content)
 
             # parts[0] is '' if the file begins with a header, or else it is the body text
             # before the first header. The first header is always described by parts[1:4];
             # every part indexed 4*N + 1 is a line number.
 
             # Create a list of (header, arg, line, body) tuples, skipping parts[0]
-            sections = [Section('$'+h, a, int(l), b) for (l,h,a,b) in zip(parts[1::4],
-                                                                          parts[2::4],
-                                                                          parts[3::4],
-                                                                          parts[4::4])]
+            sections = [_Section('$'+h, a, int(l), b) for (l, h, a, b)
+                        in zip(parts[1::4], parts[2::4], parts[3::4], parts[4::4])]
 
             # Convert to deque and prepend the leading body text if necessary
             sections = deque(sections)
             if parts[0]:
-                sections.appendleft(Section('$ONCE', '', 0, parts[0]))
+                sections.appendleft(_Section('$ONCE', '', 0, parts[0]))
 
             # Convert the sections into a list of execution blocks
-            # Each call to _PdsBlock.new_block pops one or more items off top of the deque;
-            # the loop repeats until no sections are left.
+            # Each call to _PdsBlock.new_block pops one or more items off top of the
+            # deque; the loop repeats until no sections are left.
             self.blocks = deque()
             while sections:
                 # Each call to _PdsBlock.new_block takes as many sections off the deque as
@@ -381,7 +179,7 @@ class PdsTemplate(object):
                 self.blocks.append(_PdsBlock.new_block(sections, self))
 
         except Exception as e:
-            logger.exception(e, filename)
+            logger.exception(e, str(self.template_path))
             raise
 
         # Used to communicate error conditions during generate() or write()
@@ -391,14 +189,13 @@ class PdsTemplate(object):
     def _detect_xml(lines):
         """Determine whether the given content is xml."""
 
-        if  lines[0].find('<?xml') != -1:
+        if lines[0].find('<?xml') != -1:
             return True
 
         if len(lines[0].split('<')) == len(lines[0].split('>')):
             return True
 
         return False
-
 
     @staticmethod
     def _strip_comments(lines):
@@ -417,35 +214,40 @@ class PdsTemplate(object):
 
         return newlines
 
-
     @staticmethod
     def set_logger(logger=None):
-        """Define the pdslogger globally for this module."""
+        """Define the pdslogger globally for this module.
+
+        Parameters:
+            logger (pdslogger.PdsLogger, optional):
+                The PdsLogger to use, or None to disable logging.
+        """
 
         if logger:
-            PdsTemplate.GLOBAL_LOGGER = logger
+            PdsTemplate._GLOBAL_LOGGER = logger
         else:
-            PdsTemplate.GLOBAL_LOGGER = pdslogger.NullLogger()
+            PdsTemplate._GLOBAL_LOGGER = pdslogger.NullLogger()
 
     def generate(self, dictionary, label_path='', *,
-                       terminator = None,
-                       raise_exceptions = False,
-                       logger = None,
-                       _state = None):
-        """Generate the content of one label based on the template and dictionary.
+                 terminator=None, raise_exceptions=False, logger=None, _state=None):
+        r"""Generate the content of one label based on the template and dictionary.
 
-        Input:
-            dictionary          the dictionary of parameters to fill into the template.
-            label_path          output label file path.
-            terminator          line terminator, either "\n" or "\r\n". Use None (the
-                                default) to retain the line terminator used in the
-                                template.
-            raise_exceptions    True to raise any exceptions encountered; False to log
-                                them and embed the error messages into the label, marked
-                                by "[[[" and "]]]".
-            logger              logger to use; None for the global default logger.
-            _state              an optional _LabelState object to override the other input
-                                parameters.
+        Parameters:
+            dictionary (dict):
+                The dictionary of parameters to replace in the template.
+            label_path (str or pathlib.Path, optional):
+                The output label file path.
+            terminator (str, optional):
+                The line terminator, either "\\n" or "\\r\\n". The default is to retain
+                the line terminator used in the template.
+            raise_exceptions (bool, optional):
+                True to raise any exceptions encountered; False to log them and embed the
+                error messages into the label, marked by "[[[" and "]]]".
+            logger (pdslogger.PdsLogger, optional):
+                The logger to use. The default is to use the global default logger.
+            _state (_LabelState, optional):
+                A _LabelState object to override the other input parameters, for use
+                internally.
         """
 
         # For recursive calls, _state contains the state of the generation process
@@ -454,21 +256,25 @@ class PdsTemplate(object):
             state.terminator = state.terminator or self.terminator
         else:
             state = _LabelState(dictionary, label_path,
-                                terminator = terminator or self.terminator,
-                                raise_exceptions = raise_exceptions,
-                                logger = logger or PdsTemplate.GLOBAL_LOGGER)
+                                terminator=(terminator or self.terminator),
+                                raise_exceptions=raise_exceptions,
+                                logger=(logger or PdsTemplate._GLOBAL_LOGGER))
 
         # Merge the predefined functions into this dictionary unless it was overridden
         local_dict = {}
-        for key, func in PREDEFINED_FUNCTIONS.items():
+        for key, func in PdsTemplate._PREDEFINED_FUNCTIONS.items():
             if key not in dictionary:
                 local_dict[key] = func
 
-        # This predefined function is not a static method
+        # These predefined functions are not static methods
         def TEMPLATE_PATH():
-            return self.template_path
+            return str(self.template_path)
+
+        def LABEL_PATH():
+            return str(state.label_path)
 
         local_dict['TEMPLATE_PATH'] = TEMPLATE_PATH
+        local_dict['LABEL_PATH'] = LABEL_PATH
 
         # state.local_dicts contains variable names and definitions that are only
         # applicable at this point in the generation. They will become undefined when
@@ -497,31 +303,30 @@ class PdsTemplate(object):
         return content
 
     def write(self, dictionary, label_path, *,
-                    terminator = None,
-                    raise_exceptions = False,
-                    logger = None):
-        """Write one label based on the template, dictionary, and output filename.
+              terminator=None, raise_exceptions=False, logger=None):
+        r"""Write one label based on the template, dictionary, and output filename.
 
-        Input:
-            dictionary          the dictionary of parameters to fill into the template.
-            label_path          output label file path.
-            terminator          line terminator, either "\n" or "\r\n". Use None (the
-                                default) to retain the line terminator used in the
-                                template.
-                                retain the line terminators of the template file.
-            raise_exceptions    True to raise any exceptions encountered; False to log
-                                them and embed the error messages into the label.
-            logger              logger to use; None for the global default.
-            state               an optional _LabelState object containing the default input
-                                parameters.
+        Parameters:
+            dictionary (dict):
+                The dictionary of parameters to replace in the template.
+            label_path (str or pathlib.Path, optional):
+                The output label file path.
+            terminator (str, optional):
+                The line terminator, either "\\n" or "\\r\\n". The default is to retain
+                the line terminator used in the template.
+            raise_exceptions (bool, optional):
+                True to raise any exceptions encountered; False to log them and embed the
+                error messages into the label, marked by "[[[" and "]]]".
+            logger (pdslogger.PdsLogger, optional):
+                The logger to use. The default is to use the global default logger.
         """
 
         state = _LabelState(dictionary, label_path,
-                                        terminator = terminator or self.terminator,
-                                        raise_exceptions = raise_exceptions,
-                                        logger = logger or PdsTemplate.GLOBAL_LOGGER)
+                            terminator=(terminator or self.terminator),
+                            raise_exceptions=raise_exceptions,
+                            logger=(logger or PdsTemplate._GLOBAL_LOGGER))
 
-        state.logger.info('Generating label', label_path)
+        state.logger.info('Generating label', str(state.label_path))
 
         content = self.generate(dictionary, _state=state)
         if state.terminator != self.terminator:
@@ -529,12 +334,14 @@ class PdsTemplate(object):
 
         # Summarize the errors if necessary
         if state.error_count == 1:
-            state.logger.error('1 error generating label', label_path)
+            state.logger.error('1 error generating label', str(state.label_path))
         elif state.error_count:
-            state.logger.error(f'{state.error_count} errors generating label', label_path)
+            state.logger.error(f'{state.error_count} errors generating label',
+                               str(state.label_path))
 
         # Write the label
-        with open(label_path, 'w') as f:
+        label_path = pathlib.Path(state.label_path)
+        with label_path.open('w') as f:
             f.write(content)
             if not content.endswith(state.terminator):
                 f.write(state.terminator)
@@ -544,29 +351,23 @@ class PdsTemplate(object):
     ######################################################################################
 
     @staticmethod
-    def BASENAME(filename):
-        """Return the basename of a file path."""
+    def BASENAME(filepath):
+        """The basename of `filepath`, with the leading directory path removed."""
 
-        return os.path.basename(filename)
+        return os.path.basename(filepath)
 
     @staticmethod
     def BOOL(value, true='true', false='false'):
-        """Return this value as an PDS4 boolean."""
+        """Return `true` if `value` evaluates to Boolean True; otherwise, return `false`.
+        """
 
         return (true if value else false)
 
-    @staticmethod
-    def CURRENT_ZULU(date_only=False):
-        """Return the current date/time UTC as a formatted string."""
-
-        if date_only:
-            return time.strftime('%Y-%m-%d', time.gmtime())
-        return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-
     _counters = {}
+
     @staticmethod
     def COUNTER(name, reset=False):
-        """Return the value of a counter."""
+        """Return the value of a counter identified by `name`, starting at 1."""
 
         if name not in PdsTemplate._counters.keys():
             PdsTemplate._counters[name] = 0
@@ -574,6 +375,26 @@ class PdsTemplate(object):
         if reset:
             PdsTemplate._counters[name] = 0
         return PdsTemplate._counters[name]
+
+    @staticmethod
+    def CURRENT_TIME(date_only=False):
+        """The current date/time in the local time zone as a formatted string of the form
+        "yyyy-mm-ddThh:mm:sss" if `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
+        """
+
+        if date_only:
+            return datetime.datetime.now().isoformat()[:10]
+        return datetime.datetime.now().isoformat()[:19]
+
+    @staticmethod
+    def CURRENT_ZULU(date_only=False):
+        """Return the current UTC date/time as a formatted string of the form
+        "yyyy-mm-ddThh:mm:sssZ" if `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
+        """
+
+        if date_only:
+            return time.strftime('%Y-%m-%d', time.gmtime())
+        return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
     @staticmethod
     def _DATETIME(value, offset=0, digits=None, date_type='YMD'):
@@ -634,63 +455,70 @@ class PdsTemplate(object):
             return sec
 
     @staticmethod
-    def DATETIME(value, offset=0, digits=None):
-        """Convert the given date/time string or time in TDB seconds to a year-month-day
-        format with a trailing "Z". The date can be in any format parsable by the Julian
-        module. An optional offset in seconds is applied. If the value is "UNK", then
-        "UNK" is returned.
-        """
-
-        return PdsTemplate._DATETIME(value, offset, digits, date_type='YMD')
-
-    @staticmethod
-    def DATETIME_DOY(value, offset=0, digits=None):
-        """Convert the given date/time string or time in TDB seconds to a year + day of
-        year format with a trailing "Z". The date can be in any format parsable by the
-        Julian module. An optional offset in seconds is applied. If the value is "UNK",
+    def DATETIME(time, offset=0, digits=None):
+        """Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
+        of the form "yyyy-mm-ddThh:mm:ss[.fff]Z". An optional `offset` in seconds can be
+        applied. The returned string contains an appropriate number of decimal digits in
+        the seconds field unless `digits` is specified explicitly. If `time` is "UNK",
         then "UNK" is returned.
         """
 
-        return PdsTemplate._DATETIME(value, offset, digits, date_type='YD')
+        return PdsTemplate._DATETIME(time, offset, digits, date_type='YMD')
 
     @staticmethod
-    def DAYSECS(value):
-        """The number of elapsed seconds after the beginning of the day. Input can be
-        a time in TDB seconds, a date/time string, or a time string."""
+    def DATETIME_DOY(time, offset=0, digits=None):
+        """Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
+        of the form "yyyy-dddThh:mm:ss[.fff]Z". An optional `offset` in seconds can be
+        applied. The returned string contains an appropriate number of decimal digits in
+        the seconds field unless `digits` is specified explicitly. If `time` is "UNK",
+        then "UNK" is returned.
+        """
 
-        if isinstance(value, numbers.Real):
-            return PdsTemplate._DATETIME(value, 0, None, date_type='SEC')
+        return PdsTemplate._DATETIME(time, offset, digits, date_type='YD')
+
+    @staticmethod
+    def DAYSECS(time):
+        """The number of elapsed seconds since the most recent midnight. `time` can be
+       a date/time string, a time string, or TDB seconds.
+        """
+
+        if isinstance(time, numbers.Real):
+            return PdsTemplate._DATETIME(time, 0, None, date_type='SEC')
 
         try:
-            return julian.sec_from_string(value)
+            return julian.sec_from_string(time)
         except Exception:
-            return PdsTemplate._DATETIME(value, 0, None, date_type='SEC')
+            return PdsTemplate._DATETIME(time, 0, None, date_type='SEC')
 
     @staticmethod
-    def FILE_BYTES(filename):
-        """Return the number of bytes in a file."""
+    def FILE_BYTES(filepath):
+        """The size in bytes of the file specified by `filepath`."""
 
-        return os.path.getsize(filename)
+        return os.path.getsize(filepath)
 
     # From http://stackoverflow.com/questions/3431825/-
     @staticmethod
-    def FILE_MD5(filename, blocksize=65536):
-        """Return the MD5 checksum of the file at the specified path."""
+    def FILE_MD5(filepath):
+        """Return the MD5 checksum of the file specified by `filepath`."""
 
-        f = open(filename, 'rb')
+        blocksize = 65536
+        f = open(filepath, 'rb')
         hasher = hashlib.md5()
         buf = f.read(blocksize)
         while len(buf) > 0:
             hasher.update(buf)
             buf = f.read(blocksize)
 
+        f.close()
         return hasher.hexdigest()
 
     @staticmethod
-    def FILE_RECORDS(filename):
-        """Return the number of records in a file; 0 if the file is binary."""
+    def FILE_RECORDS(filepath):
+        """The number of records in the the file specified by `filepath` if it is ASCII;
+        0 if the file is binary.
+        """
 
-        with open(filename) as f:
+        with open(filepath) as f:
             count = 0
             asciis = 0
             non_asciis = 0
@@ -709,10 +537,21 @@ class PdsTemplate(object):
         return count
 
     @staticmethod
-    def FILE_ZULU(filename):
-        """Return the modification time of a file as a formatted string."""
+    def FILE_TIME(filepath):
+        """The modification time in the local time zone of the file specified by
+        `filepath` in the form "yyyy-mm-ddThh:mm:ss".
+        """
 
-        timestamp = os.path.getmtime(filename)
+        timestamp = os.path.getmtime(filepath)
+        return datetime.datetime.fromtimestamp(timestamp).isoformat()[:19]
+
+    @staticmethod
+    def FILE_ZULU(filepath):
+        """The UTC modification time of the the file specified by `filepath` in the form
+        "yyyy-mm-ddThh:mm:ssZ".
+        """
+
+        timestamp = os.path.getmtime(filepath)
         try:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
         except AttributeError:
@@ -721,20 +560,24 @@ class PdsTemplate(object):
         return utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     @staticmethod
+    def NOESCAPE(text):
+        """If the template is XML, evaluated expressions are "escaped" to ensure that they
+        are suitable for embedding in a PDS label. For example, ">" inside a string will
+        be replaced by "&gt;". This function prevents `text` from being escaped in the
+        label, allowing it to contain literal XML.
+        """
+
+        return _NOESCAPE_FLAG + text
+
+    @staticmethod
     def RAISE(exception, message):
-        """Raise an exception with the given class and message."""
+        """Raise an exception with the given class `exception` and the `message`."""
 
         raise (exception)(message)
 
     @staticmethod
-    def NOESCAPE(text):
-        """Prevent the returned text from being escaped."""
-
-        return NOESCAPE_FLAG + text
-
-    @staticmethod
     def REPLACE_NA(value, na_value, flag='N/A'):
-        """Replace a string with the value 'N/A' with a numeric."""
+        """Return `na_value` if `value` equals "N/A"; otherwise, return `value`."""
 
         if isinstance(value, str):
             value = value.strip()
@@ -746,20 +589,22 @@ class PdsTemplate(object):
 
     @staticmethod
     def REPLACE_UNK(value, unk_value):
-        """Replace a string with the value 'UNK' with a numeric."""
+        """Return `unk_value` if `value` equals "UNK"; otherwise, return `value`."""
 
-        return PdsTemplate.REPLACE_NA(value, unk_value, 'UNK')
+        return PdsTemplate.REPLACE_NA(value, unk_value, flag='UNK')
 
     @staticmethod
     def VERSION_ID():
-        """Return the PdsTemplate version ID."""
+        """Return the PdsTemplate version ID, e.g., "1.0 (2022-10-05)"."""
 
         return PDSTEMPLATE_VERSION_ID
 
     @staticmethod
     def WRAP(left, right, text, preserve_single_newlines=True):
-        """Format the text with the specified indentation and specified width. Newlines
-        are preserved if requested."""
+        """Format `text` to fit between the `left` and `right` column numbers. The first
+        line is not indented, so the text will begin in the column where "$WRAP" first
+        appears in the template.
+        """
 
         if not preserve_single_newlines:
             # Remove any newlines between otherwise good text - we do this twice
@@ -781,55 +626,58 @@ class PdsTemplate(object):
         new_lines = []
         for line in old_lines:
             if line:
-                new_lines += textwrap.wrap(line, width=right,
-                                                 initial_indent=indent,
-                                                 subsequent_indent=indent,
-                                                 break_long_words=False,
-                                                 break_on_hyphens=False)
+                new_lines += textwrap.wrap(line,
+                                           width=right,
+                                           initial_indent=indent,
+                                           subsequent_indent=indent,
+                                           break_long_words=False,
+                                           break_on_hyphens=False)
             else:
                 new_lines.append('')
 
-        new_lines[0] = new_lines[0][left:]  # strip the first left indent; this should be
-                                            # where "$WRAP" appears in the template
+        new_lines[0] = new_lines[0][left:]
+            # strip the first left indent; this should be where "$WRAP" appears in the
+            # template.
 
         return '\n'.join(new_lines)
 
-PREDEFINED_FUNCTIONS = {}
-PREDEFINED_FUNCTIONS['BASENAME'    ] = PdsTemplate.BASENAME
-PREDEFINED_FUNCTIONS['BOOL'        ] = PdsTemplate.BOOL
-PREDEFINED_FUNCTIONS['CURRENT_ZULU'] = PdsTemplate.CURRENT_ZULU
-PREDEFINED_FUNCTIONS['COUNTER'     ] = PdsTemplate.COUNTER
-PREDEFINED_FUNCTIONS['DATETIME'    ] = PdsTemplate.DATETIME
-PREDEFINED_FUNCTIONS['DATETIME_DOY'] = PdsTemplate.DATETIME_DOY
-PREDEFINED_FUNCTIONS['DAYSECS'     ] = PdsTemplate.DAYSECS
-PREDEFINED_FUNCTIONS['FILE_BYTES'  ] = PdsTemplate.FILE_BYTES
-PREDEFINED_FUNCTIONS['FILE_MD5'    ] = PdsTemplate.FILE_MD5
-PREDEFINED_FUNCTIONS['FILE_RECORDS'] = PdsTemplate.FILE_RECORDS
-PREDEFINED_FUNCTIONS['FILE_ZULU'   ] = PdsTemplate.FILE_ZULU
-PREDEFINED_FUNCTIONS['NOESCAPE'    ] = PdsTemplate.NOESCAPE
-PREDEFINED_FUNCTIONS['RAISE'       ] = PdsTemplate.RAISE
-PREDEFINED_FUNCTIONS['REPLACE_NA'  ] = PdsTemplate.REPLACE_NA
-PREDEFINED_FUNCTIONS['REPLACE_UNK' ] = PdsTemplate.REPLACE_UNK
-PREDEFINED_FUNCTIONS['VERSION_ID'  ] = PdsTemplate.VERSION_ID
-PREDEFINED_FUNCTIONS['WRAP'        ] = PdsTemplate.WRAP
+    _PREDEFINED_FUNCTIONS = {}
+    _PREDEFINED_FUNCTIONS['BASENAME'    ] = BASENAME
+    _PREDEFINED_FUNCTIONS['BOOL'        ] = BOOL
+    _PREDEFINED_FUNCTIONS['CURRENT_TIME'] = CURRENT_TIME
+    _PREDEFINED_FUNCTIONS['CURRENT_ZULU'] = CURRENT_ZULU
+    _PREDEFINED_FUNCTIONS['COUNTER'     ] = COUNTER
+    _PREDEFINED_FUNCTIONS['DATETIME'    ] = DATETIME
+    _PREDEFINED_FUNCTIONS['DATETIME_DOY'] = DATETIME_DOY
+    _PREDEFINED_FUNCTIONS['DAYSECS'     ] = DAYSECS
+    _PREDEFINED_FUNCTIONS['FILE_BYTES'  ] = FILE_BYTES
+    _PREDEFINED_FUNCTIONS['FILE_MD5'    ] = FILE_MD5
+    _PREDEFINED_FUNCTIONS['FILE_RECORDS'] = FILE_RECORDS
+    _PREDEFINED_FUNCTIONS['FILE_TIME'   ] = FILE_TIME
+    _PREDEFINED_FUNCTIONS['FILE_ZULU'   ] = FILE_ZULU
+    _PREDEFINED_FUNCTIONS['NOESCAPE'    ] = NOESCAPE
+    _PREDEFINED_FUNCTIONS['RAISE'       ] = RAISE
+    _PREDEFINED_FUNCTIONS['REPLACE_NA'  ] = REPLACE_NA
+    _PREDEFINED_FUNCTIONS['REPLACE_UNK' ] = REPLACE_UNK
+    _PREDEFINED_FUNCTIONS['VERSION_ID'  ] = VERSION_ID
+    _PREDEFINED_FUNCTIONS['WRAP'        ] = WRAP
 
 ##########################################################################################
 # LabelStatus class
 ##########################################################################################
 
 class _LabelState(object):
-    """Class to carry status information about where we are in the template and the label
-    generation."""
+    """Internal class to carry status information about where we are in the template and
+    the label generation.
+    """
 
     def __init__(self, dictionary, label_path='', *,
-                       terminator = None,
-                       raise_exceptions = False,
-                       logger = None):
+                 terminator=None, raise_exceptions=False, logger=None):
 
         self.label_path = label_path
         self.terminator = terminator
         self.raise_exceptions = raise_exceptions
-        self.logger = logger or PdsTemplate.GLOBAL_LOGGER
+        self.logger = logger or PdsTemplate._GLOBAL_LOGGER
 
         self.global_dict = dictionary
         self.local_dicts = [{}]
@@ -852,11 +700,11 @@ class _PdsBlock(object):
         _PdsElseBlock  for $ELSE
         _PdsNoteBlock  for $NOTE
         _PdsOnceBlock  for $END_FOR, $END_IF, $END_NOTE, and any other section of the
-                      template for which what follows is included exactly once.
+                       template for which what follows is included exactly once.
 
-    Each _PdsBlock always represents a logically complete section of the template, from one
-    header up to its logical completion. For example, if a template contains this sequence
-    of headers:
+    Each _PdsBlock always represents a logically complete section of the template, from
+    one header up to its logical completion. For example, if a template contains this
+    sequence of headers:
         $FOR(...)
           $IF(...)
           $ELSE
@@ -872,8 +720,8 @@ class _PdsBlock(object):
     this header and the next header. That text is pre-processed for speedier execution by
     locating all the Python expressions (surrounded by "$") embedded within it.
 
-    The constructor for each _PdsBlock subclass takes a single deque of Sequence objects as
-    input. As a side-effect, it removes one or more items from the front of the deque
+    The constructor for each _PdsBlock subclass takes a single deque of Sequence objects
+    as input. As a side-effect, it removes one or more items from the front of the deque
     until its definition, including any nested _PdsBlocks, is complete. The constructor
     handles any nested _PdsBlocks within it by calling the constructor recursively and
     saving the results of each recursive call in its sub_blocks attribute.
@@ -892,9 +740,9 @@ class _PdsBlock(object):
 
     @staticmethod
     def new_block(sections, template):
-        """Construct an _PdsBlock subclass based on a deque of Section tuples (header, arg,
-        line,  body). Pop as many Section tuples off the top of the deque as are necessary
-        to complete the block and any of its internal blocks, recursively.
+        """Construct an _PdsBlock subclass based on a deque of _Section tuples (header,
+        arg, line,  body). Pop as many _Section tuples off the top of the deque as are
+        necessary to complete the block and any of its internal blocks, recursively.
         """
 
         (header, arg, line, body) = sections[0]
@@ -933,11 +781,11 @@ class _PdsBlock(object):
         # consistent with the others
         parts[0] = '0:' + parts[0]
 
-        # new_parts is a deque of values that alternates between label substrings and tuples
-        # (expression, name, line)
+        # new_parts is a deque of values that alternates between label substrings and
+        # tuples (expression, name, line)
 
         new_parts = deque()
-        for k,part in enumerate(parts):
+        for k, part in enumerate(parts):
 
             # Strip off the line number that we inserted after every "$"
             (line, _, part) = part.partition(':')
@@ -1009,15 +857,15 @@ class _PdsBlock(object):
 
                 # Format a float without unnecessary trailing zeros
                 if isinstance(value, float):
-                    value = pretty_truncate(value)
+                    value = _PdsBlock._pretty_truncate(value)
                 else:
                     # Otherwise, just convert to string
                     value = str(value)
 
                 # Escape
                 if self.template.xml:
-                    if value.startswith(NOESCAPE_FLAG):
-                        value = value[len(NOESCAPE_FLAG):]
+                    if value.startswith(_NOESCAPE_FLAG):
+                        value = value[len(_NOESCAPE_FLAG):]
                     else:
                         value = escape(value)
 
@@ -1026,9 +874,9 @@ class _PdsBlock(object):
         return results
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the blanks. The
-        content is returned as a deque of strings, to be joined upon completion to create
-        the label content.
+        """Evaluate this block of label text, using the dictionaries to fill in the
+        blanks. The content is returned as a deque of strings, to be joined upon
+        completion to create the label content.
 
         This base class method implements the default procedure, which is to execute the
         body plus any sub-blocks exactly once. It is overridden for $FOR and $IF blocks.
@@ -1042,6 +890,54 @@ class _PdsBlock(object):
             results += block.execute(state)
 
         return results
+
+    ######################################################################################
+    # Utility
+    ######################################################################################
+
+    # Modify a number if it contains ten 0's or 9's in a row, followed by other digits
+    _ZEROS = re.compile(r'(.*[.1-9])0{10,99}[1-9]\d*')
+    _NINES = re.compile(r'(.*\.\d+9{10,99})[0-8]\d*')
+
+    def _pretty_truncate(value):
+        """Convert a floating-point number to a string, while suppressing any extraneous
+        trailing digits by rounding to the nearest value that does not have them.
+
+        This eliminates numbers like "1.0000000000000241" and "0.9999999999999865" in the
+        label, by suppressing insignificant digits.
+        """
+
+        str_value = str(value)
+
+        (mantissa, e, exponent) = str_value.partition('e')
+        if mantissa.endswith('.0'):
+            return mantissa[:-1] + e + exponent
+
+        # Handle trailing zeros
+        match = _PdsBlock._ZEROS.fullmatch(mantissa)
+        if match:
+            return match.group(1) + e + exponent
+
+        # Check for trailing nines
+        match = _PdsBlock._NINES.fullmatch(mantissa)
+        if not match:
+            # Value looks OK; return as is
+            return str_value
+
+        # Replace every digit in the mantissa with a zero
+        # This creates an string expression equal to zero, but using the exact same
+        # format, including sign.
+        offset_str = match.group(1)
+        for c in '123456789':       # replace non-zero digits with zeros
+            offset_str = offset_str.replace(c, '0')
+
+        # Now replace the last digit with "1"
+        # This is an offset (positive or negative) to zero out the trailing digits
+        offset_str = offset_str[:-1] + '1'      # replace the last digit with "1"
+
+        # Apply the offset and return
+        value = float(match.group(1)) + float(offset_str)
+        return str(value).rstrip('0') + e + exponent
 
 ################################################
 
@@ -1087,9 +983,9 @@ class _PdsOnceBlock(_PdsBlock):
             raise TemplateError(f'extraneous argument for {self.header} at line {line}')
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the blanks.
-        The content is returned as a deque of strings, to be joined upon completion to
-        create the label content.
+        """Evaluate this block of label text, using the dictionaries to fill in the
+        blanks. The content is returned as a deque of strings, to be joined upon
+        completion to create the label content.
         """
 
         # Pop the local dictionary stack if necessary
@@ -1145,13 +1041,13 @@ class _PdsNoteBlock(_PdsBlock):
 
         # Handle the matching $END_NOTE section as $ONCE
         (header, arg, line, body) = sections[0]
-        sections[0] = Section('$ONCE-' + header, '', line, body)
+        sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the blanks.
-        The content is returned as a deque of strings, to be joined upon completion to
-        create the label content.
-        """
+        """Evaluate this block of label text, using the dictionaries to fill in the
+        blanks. The content is returned as a deque of strings, to be joined upon
+        completion to create the label content.
+     """
 
         return deque()
 
@@ -1186,7 +1082,8 @@ class _PdsForBlock(_PdsBlock):
         self.length = 'LENGTH'
         self.arg = arg
 
-        for pattern in (_PdsForBlock.PATTERN1, _PdsForBlock.PATTERN2, _PdsForBlock.PATTERN3):
+        for pattern in (_PdsForBlock.PATTERN1, _PdsForBlock.PATTERN2,
+                        _PdsForBlock.PATTERN3):
             match = pattern.fullmatch(arg)
             if match:
                 groups = match.groups()
@@ -1208,11 +1105,12 @@ class _PdsForBlock(_PdsBlock):
 
         # Handle the matching $END_FOR section as $ONCE
         (header, arg, line, body) = sections[0]
-        sections[0] = Section('$ONCE-' + header, '', line, body)
+        sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the blanks.
-        The content is returned as a deque of strings, to be joined upon completion.
+        """Evaluate this block of label text, using the dictionaries to fill in the
+        blanks. The content is returned as a deque of strings, to be joined upon
+        completion.
         """
 
         try:
@@ -1229,7 +1127,7 @@ class _PdsForBlock(_PdsBlock):
         results = deque()
         iterator = list(iterator)
         state.local_dicts[-1][self.length] = len(iterator)
-        for k,item in enumerate(iterator):
+        for k, item in enumerate(iterator):
             state.local_dicts[-1][self.value] = item
             state.local_dicts[-1][self.index] = k
             results += _PdsBlock.execute(self, state)
@@ -1285,12 +1183,12 @@ class _PdsIfBlock(_PdsBlock):
 
         # Handle the matching $END_IF section as $ONCE
         (header, arg, line, body) = sections[0]
-        sections[0] = Section('$ONCE-' + header, '', line, body)
+        sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the blanks.
-        The content is returned as a deque of strings, to be joined upon completion to be
-        joined upon completion to create the label content.
+        """Evaluate this block of label text, using the dictionaries to fill in the
+        blanks. The content is returned as a deque of strings, to be joined upon
+        completion to be joined upon completion to create the label content.
         """
 
         try:
@@ -1339,56 +1237,10 @@ class _PdsElseBlock(_PdsBlock):
             self.sub_blocks.append(_PdsBlock.new_block(sections, template))
 
         if not sections:
-            raise TemplateError (f'unterminated {header} block starting at line {line}')
+            raise TemplateError(f'unterminated {header} block starting at line {line}')
 
         # Handle the matching $END_IF section as $ONCE
         (header, arg, line, body) = sections[0]
-        sections[0] = Section('$ONCE-' + header, '', line, body)
+        sections[0] = _Section('$ONCE-' + header, '', line, body)
 
 ##########################################################################################
-# Utility
-##########################################################################################
-
-# Modify a number if it contains ten 0's or 9's in a row, followed by other digits
-ZEROS = re.compile(r'(.*[.1-9])0{10,99}[1-9]\d*')
-NINES = re.compile(r'(.*\.\d+9{10,99})[0-8]\d*')
-
-def pretty_truncate(value):
-    """Convert a floating-point number to a string, while suppressing any extraneous
-    trailing digits by rounding to the nearest value that does not have them.
-
-    This eliminates numbers like "1.0000000000000241" and "0.9999999999999865" in the
-    label, by suppressing insignificant digits.
-    """
-
-    str_value = str(value)
-
-    (mantissa, e, exponent) = str_value.partition('e')
-    if mantissa.endswith('.0'):
-        return mantissa[:-1] + e + exponent
-
-    # Handle trailing zeros
-    match = ZEROS.fullmatch(mantissa)
-    if match:
-        return match.group(1) + e + exponent
-
-    # Check for trailing nines
-    match = NINES.fullmatch(mantissa)
-    if not match:
-        # Value looks OK; return as is
-        return str_value
-
-    # Replace every digit in the mantissa with a zero
-    # This creates an string expression equal to zero, but using the exact same format,
-    # including sign.
-    offset_str = match.group(1)
-    for c in '123456789':       # replace non-zero digits with zeros
-        offset_str = offset_str.replace(c, '0')
-
-    # Now replace the last digit with "1"
-    # This is an offset (positive or negative) to zero out the trailing digits
-    offset_str = offset_str[:-1] + '1'      # replace the last digit with "1"
-
-    # Apply the offset and return
-    value = float(match.group(1)) + float(offset_str)
-    return str(value).rstrip('0') + e + exponent

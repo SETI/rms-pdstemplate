@@ -1,32 +1,34 @@
 ##########################################################################################
-# UNIT TESTS
+# tests/test_pdstemplate.py
 ##########################################################################################
 
-from pdstemplate import *
-
-import unittest
+import os
+import re
 import tempfile
+import unittest
+
+from pdstemplate import PdsTemplate, PDSTEMPLATE_VERSION_ID
 
 
-#===============================================================================
 class Test_Substitutions(unittest.TestCase):
 
-    #===========================================================================
     def runTest(self):
 
-        T = PdsTemplate('t.xml', content='<instrument_id>$INSTRUMENT_ID$</instrument_id>\n')
+        T = PdsTemplate('t.xml',
+                        content='<instrument_id>$INSTRUMENT_ID$</instrument_id>\n')
         D = {'INSTRUMENT_ID': 'ISSWA'}
         V = '<instrument_id>ISSWA</instrument_id>\n'
         self.assertEqual(T.generate(D), V)
 
-        T = PdsTemplate('t.xml', content='<f>$"Narrow" if INST == "ISSNA" else "Wide"$</f>\n')
+        T = PdsTemplate('t.xml',
+                        content='<f>$"Narrow" if INST == "ISSNA" else "Wide"$</f>\n')
         D = {'INST': 'ISSWA'}
         V = '<f>Wide</f>\n'
         self.assertEqual(T.generate(D), V)
 
         T = PdsTemplate('t.xml',
-                        content='<a>$cs=("cruise" if TIME < 2004 else "saturn")$</a>\n'+
-                            '<b>$cs.upper()$<b>\n')
+                        content='<a>$cs=("cruise" if TIME < 2004 else "saturn")$</a>\n'
+                                '<b>$cs.upper()$<b>\n')
         D = {'TIME': 2004}
         V = '<a>saturn</a>\n<b>SATURN<b>\n'
         self.assertEqual(T.generate(D), V)
@@ -41,19 +43,15 @@ class Test_Substitutions(unittest.TestCase):
         self.assertEqual(T.generate(D), V)
 
 
-#===============================================================================
-class Test_Predefined(unittest.TestCase):
+LOREM_IPSUM = (
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "
+    "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
+    "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute "
+    "irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla "
+    "pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia "
+    "deserunt mollit anim id est laborum.")
 
-    LOREM_IPSUM = \
-"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "       +\
-"incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "   +\
-"exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute "      +\
-"irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla "   +\
-"pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia "  +\
-"deserunt mollit anim id est laborum."
-
-    JABBERWOCKY = """\
-'Twas brillig, and the slithy toves
+JABBERWOCKY = """'Twas brillig, and the slithy toves
 Did gyre and gimble in the wabe:
 All mimsy were the borogoves,
 And the mome raths outgrabe.
@@ -65,7 +63,7 @@ The frumious Bandersnatch!"
 
 """
 
-    LOREM_IPSUM_JABBERWOCKY_MULTILINE = """
+LOREM_IPSUM_JABBERWOCKY_MULTILINE = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
 incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
 exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
@@ -85,7 +83,9 @@ Beware the Jubjub bird, and shun
 The frumious Bandersnatch!"
 """
 
-    #===========================================================================
+
+class Test_Predefined(unittest.TestCase):
+
     def runTest(self):
 
         # BASENAME
@@ -124,6 +124,17 @@ The frumious Bandersnatch!"
         self.assertEqual(T.generate({}), '2\n')
         self.assertEqual(T.generate({}), '3\n')
         self.assertEqual(T.generate({}), '4\n')
+
+        # CURRENT_TIME
+        T = PdsTemplate('t.xml', content='<a>today=$CURRENT_TIME()$</a>\n')
+        D = {'path': 'a/b/c.txt'}
+        V = re.compile(r'<a>today=202\d-\d\d-\d\dT\d\d:\d\d:\d\d</a>\n')
+        self.assertTrue(V.fullmatch(T.generate(D)))
+
+        T = PdsTemplate('t.xml', content='<a>today=$CURRENT_TIME(date_only=True)$</a>\n')
+        D = {'path': 'a/b/c.txt'}
+        V = re.compile(r'<a>today=202\d-\d\d-\d\d</a>\n')
+        self.assertTrue(V.fullmatch(T.generate(D)))
 
         # CURRENT_ZULU
         T = PdsTemplate('t.xml', content='<a>today=$CURRENT_ZULU()$</a>\n')
@@ -230,16 +241,29 @@ The frumious Bandersnatch!"
             V = '<records>10</records>\n'
             self.assertEqual(T.generate(D), V)
 
-            # FILE_ZULU
+            # FILE_TIME, CURRENT_TIME
+            os.utime(filepath, None)
+            T = PdsTemplate('t.xml', content='$FILE_TIME(temp)$::$CURRENT_TIME()$\n')
+            test = T.generate(D).rstrip()
+            times = test.split('::')   # very rarely, these times could differ by a second
+            self.assertEqual(times[0], times[1])
+
+            # FILE_ZULU, CURRENT_ZULU
             os.utime(filepath, None)
             T = PdsTemplate('t.xml', content='$FILE_ZULU(temp)$::$CURRENT_ZULU()$\n')
             test = T.generate(D).rstrip()
-            times = test.split('::')    # very rarely, these times could differ by a second
+            times = test.split('::')   # very rarely, these times could differ by a second
             self.assertEqual(times[0], times[1])
 
         finally:
             os.close(fd)
             os.remove(filepath)
+
+        # LABEL_PATH
+        T = PdsTemplate('t.xml', content='<path>$LABEL_PATH()$</path>\n')
+        label_path = 'path/to/label.xml'
+        V = f'<path>{label_path}</path>\n'
+        self.assertEqual(T.generate({}, label_path), V)
 
         # NOESCAPE
         T = PdsTemplate('t.xml', content='<a>$x$</a>' +
@@ -285,6 +309,11 @@ The frumious Bandersnatch!"
         V = '<q>Unknown</q>\n'
         self.assertEqual(T.generate(D), V)
 
+        # TEMPLATE_PATH
+        T = PdsTemplate('t.xml', content='<path>$TEMPLATE_PATH()$</path>\n')
+        V = '<path>t.xml</path>\n'
+        self.assertEqual(T.generate({}), V)
+
         # VERSION_ID
         T = PdsTemplate('t.xml', content='<!-- PdsTemplate version $VERSION_ID()$ -->\n')
         V = '<!-- PdsTemplate version ' + PDSTEMPLATE_VERSION_ID + ' -->\n'
@@ -292,7 +321,7 @@ The frumious Bandersnatch!"
 
         # WRAP
         T = PdsTemplate('t.xml', content="<a>\n        $WRAP(8,84,lorem_ipsum)$\n</a>\n")
-        D = {'lorem_ipsum': Test_Predefined.LOREM_IPSUM}
+        D = {'lorem_ipsum': LOREM_IPSUM}
         V = """<a>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
@@ -302,8 +331,9 @@ The frumious Bandersnatch!"
         non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n</a>\n"""
         self.assertEqual(T.generate(D), V)
 
-        T = PdsTemplate('t.xml', content="<a>\n            $WRAP(12,84,jabberwocky)$\n</a>\n")
-        D = {'jabberwocky': Test_Predefined.JABBERWOCKY}
+        T = PdsTemplate('t.xml',
+                        content="<a>\n            $WRAP(12,84,jabberwocky)$\n</a>\n")
+        D = {'jabberwocky': JABBERWOCKY}
         V = """<a>
             'Twas brillig, and the slithy toves
             Did gyre and gimble in the wabe:
@@ -320,8 +350,7 @@ The frumious Bandersnatch!"
         T = PdsTemplate('t.xml',
                         content="<a>\n        $WRAP(8,84,lorem_ipsum_jabberwocky_multiline,"
                                 "preserve_single_newlines=False)$\n</a>\n")
-        D = {'lorem_ipsum_jabberwocky_multiline':
-             Test_Predefined.LOREM_IPSUM_JABBERWOCKY_MULTILINE}
+        D = {'lorem_ipsum_jabberwocky_multiline': LOREM_IPSUM_JABBERWOCKY_MULTILINE}
         V = """<a>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
@@ -333,16 +362,12 @@ The frumious Bandersnatch!"
         'Twas brillig, and the slithy toves Did gyre and gimble in the wabe: All
         mimsy were the borogoves, And the mome raths outgrabe.
         "Beware the Jabberwock, my son! The jaws that bite, the claws that catch!
-        Beware the Jubjub bird, and shun The frumious Bandersnatch!"
-</a>
-"""
+        Beware the Jubjub bird, and shun The frumious Bandersnatch!"\n</a>\n"""
         self.assertEqual(T.generate(D), V)
 
 
-#===============================================================================
 class Test_Headers(unittest.TestCase):
 
-    #===========================================================================
     def runTest(self):
 
         # $FOR and $END_FOR
@@ -421,9 +446,12 @@ class Test_Headers(unittest.TestCase):
         $ELSE
         <x>False ($a$, $b$)</x>
         $END_IF\n""")
-        self.assertEqual(T.generate({'x': [1.], 'y': 2}), '        <x>x is True ([1.0])</x>\n')
-        self.assertEqual(T.generate({'x': [],   'y': 2}), '        <x>y is True ([], 2)</x>\n')
-        self.assertEqual(T.generate({'x': [],   'y': 0}), '        <x>False ([], 0)</x>\n')
+        self.assertEqual(T.generate({'x': [1.], 'y': 2}),
+                         '        <x>x is True ([1.0])</x>\n')
+        self.assertEqual(T.generate({'x': [],   'y': 2}),
+                         '        <x>y is True ([], 2)</x>\n')
+        self.assertEqual(T.generate({'x': [],   'y': 0}),
+                         '        <x>False ([], 0)</x>\n')
 
         # $ONCE
         T = PdsTemplate('t.xml', content="""<a></a>
@@ -545,10 +573,8 @@ class Test_Headers(unittest.TestCase):
         self.assertEqual(T.generate(D), V)
 
 
-#===============================================================================
 class Test_Terminators(unittest.TestCase):
 
-    #===========================================================================
     def runTest(self):
 
         T = PdsTemplate('t.xml', content='<a>$A$</a>\n<b>$B$</b>\n<c>$C$</c>\n')
