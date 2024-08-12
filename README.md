@@ -92,60 +92,75 @@ To embed a literal `$` inside a label, enter `$$` into the template.
 The following pre-defined functions can be used inside any expression in the template.
 
 `BASENAME(filepath)`:
-        The basename of the given file path, with leading directory paths removed.
+        The basename of `filepath`, with leading directory path removed.
 
 `BOOL(value, true='true', false='false')`:
-        This value as a PDS4 boolean, typically either "true" or "false".
+        Return `true` if `value` evaluates to Boolean True; otherwise, return `false`.
 
 `COUNTER(name)`:
-        The current value of a counter of the given name, starting at 1.
+        The current value of a counter identified by `name`, starting at 1.
+
+`CURRENT_TIME(date_only=False)`:
+        The current time in the local time zone as a string of the form
+        "yyyy-mm-ddThh:mm:sss" if `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
 `CURRENT_ZULU(date_only=False)`:
-        The current UTC time as a string of the form "yyyy-mm-ddThh:mm:ssZ".
+        The current UTC time as a string of the form "yyyy-mm-ddThh:mm:sssZ" if
+        `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
-`DATETIME(string, offset=0, digits=None)`:
-        Convert the given date/time string to a year-month-day format with a trailing
-        "Z". An optional offset in seconds can be applied. It makes an educated guess
-        at the appropriate number of digits in the fractional seconds if this is not
-        specified explicitly.
+`DATETIME(time, offset=0, digits=None)`:
+        Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
+        format with a trailing "Z". An optional `offset` in seconds can be applied. The
+        returned string contains an appropriate number of decimal digits in the seconds
+        field unless `digits` is specified explicitly. If `time` is "UNK", then "UNK" is
+        returned.
 
-`DATETIME_DOY(string)`:
-        Convert the given date/time string to a year and day of year format with a
-        trailing "Z". Inputs are the same as for DATETIME.
+`DATETIME_DOY(time, offset=0, digits=None)`:
+        Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
+        of the form "yyyy-dddThh:mm:ss[.fff]Z". An optional `offset` in seconds can be
+        applied. The returned string contains an appropriate number of decimal digits in
+        the seconds field unless `digits` is specified explicitly. If `time` is "UNK",
+        then "UNK" is returned.
 
 `DAYSECS(string)`:
-        The number of elapsed seconds since the beginning of the most recent day.
+        The number of elapsed seconds since the most recent midnight. `time` can be
+        a date/time string, a time string, or TDB seconds.
 
 `FILE_BYTES(filepath)`:
-        The size of the specified file in bytes.
+        The size in bytes of the file specified by `filepath`.
 
 `FILE_MD5(filepath)`:
-        The MD5 checksum of the specified file.
+        The MD5 checksum of the file specified by `filepath`.
 
 `FILE_RECORDS(filepath)`:
-        The number of records in the specified file if it is ASCII; 0 if the file is
-        binary.
+        The number of records in the the file specified by `filepath` if it is ASCII; 0
+        if the file is binary.
+
+`FILE_TIME(filepath)`:
+        The modification time in the local time zone of the file specified by `filepath`
+        in the form "yyyy-mm-ddThh:mm:ss".
 
 `FILE_ZULU(filepath)`:
-        The UTC modification time of the specified file as a string of the form
-        "yyyy-mm-ddThh:mm:ss.sssZ".
+        The UTC modification time of the the file specified by `filepath` in the form
+        "yyyy-mm-ddThh:mm:ssZ".
+
+`LABEL_PATH()`:
+        The full directory path to the label file being written.
 
 `NOESCAPE(text)`:
-        Normally, evaluated expressions are "escaped", to ensure that they are
-        suitable for embedding in a PDS label. For example, `>` inside a string
-        in an XML label will be replaced by `&gt;`. This function prevents the
-        returned text from being escaped, allowing it to contain literal XML.
+        If the template is XML, evaluated expressions are "escaped" to ensure that they
+        are suitable for embedding in a PDS label. For example, ">" inside a string will
+        be replaced by "&gt;". This function prevents `text` from being escaped in the
+        label, allowing it to contain literal XML.
 
 `RAISE(exception, message)`:
-        Raise an exception with the given class and message.
+        Raise an exception with the given class `exception` and the `message`.
 
 `REPLACE_NA(value, if_na)`:
-        Return the value of the second argument if the first argument is "N/A";
-        otherwise, return the first value.
+        Return `if_na` if `value` equals "N/A"; otherwise, return `value`.
 
 `REPLACE_UNK(value, if_unk)`:
-        Return the value of the second argument if the first argument is "UNK";
-        otherwise, return the first value.
+        Return `if_unk` if `value` equals "UNK"; otherwise, return `value`.
 
 `TEMPLATE_PATH()`:
         The directory path to the template file.
@@ -154,12 +169,12 @@ The following pre-defined functions can be used inside any expression in the tem
         Version ID of this module, e.g., "1.0 (2022-10-05)".
 
 `WRAP(left, right, text)`:
-        Format the text to fit between the given left and right column numbers. The
+        Format `text` to fit between the `left` and `right` column numbers. The
         first line is not indented, so the text will begin in the column where "$WRAP"
-        first appears.
+        first appears in the template.
 
-These functions can also be used directly by the programmer; simply import them by
-name from this module.
+These functions can also be used directly by the programmer; they are static functions
+of class PdsTemplate.
 
 ### COMMENTS
 
@@ -180,12 +195,12 @@ headers. The format is
         <template text>
     $END_FOR
 
-where the expression evaluates to a Python iterable. Within the template text, these
+where `expression` evaluates to a Python iterable. Within the `template text`, these
 new variable names are assigned:
 
-- VALUE = the next value of the iterator;
-- INDEX = the index of this iterator, starting at zero;
-- LENGTH = the number of items in the iteration.
+- `VALUE` = the next value of the iterator;
+- `INDEX` = the index of this iterator, starting at zero;
+- `LENGTH` = the number of items in the iteration.
 
 For example, if
 
@@ -211,20 +226,20 @@ variable names by listing up to three comma-separated names and an equal sign `=
 before the iterable expression. For example, this will produce the same results as the
 example above:
 
-    $FOR(name,k=targets)
+    $FOR(name, k=targets)
         <target_name>$name (naif_ids[k])$</target_name>
     $END_FOR
 
 You can also use `$IF`, `$ELSE_IF`, `$ELSE`, and `$END_IF` headers to select among
 alternative blocks of text in the template:
 
-- `$IF(expression)` - Evaluate the expression and include the next lines of the
-                        template if the expression is logically True (e.g., boolean
-                        True, a nonzero number, a non-empty list or string, etc.).
-- `$ELSE_IF(expression)` - Include the next lines of the template if this expression is
-                        logically True and every previous expression was not.
+- `$IF(expression)` - Evaluate `expression` and include the next lines of the
+   template if it is logically True (e.g., boolean True, a nonzero number, a non-empty
+   list or string, etc.).
+- `$ELSE_IF(expression)` - Include the next lines of the template if `expression` is
+   logically True and every previous expression was not.
 - `$ELSE` - Include the next lines of the template only if all prior
-                        expressions were logically False.
+  expressions were logically False.
 - `$END_IF` - This marks the end of the set of if/else alternatives.
 
 As with other substitutions, you can define a new variable of a specified name by
@@ -235,8 +250,8 @@ Note that headers can be nested arbitrarily inside the template.
 You can use the `$NOTE` and `$END_NOTE` headers to embed any arbitrary comment block into
 the template. Any text between these headers does not appear in the label.
 
-One additional header is supported: `$ONCE(expression)`. This header evaluates the
-expression but does not alter the handling of subsequent lines of the template. You
+One additional header is supported: `$ONCE(expression)`. This header evaluates
+`expression` but does not alter the handling of subsequent lines of the template. You
 can use this capability to define variables internally without affecting the content
 of the label produced. For example:
 
