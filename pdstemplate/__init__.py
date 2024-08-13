@@ -37,7 +37,7 @@ except ImportError:
 # Either way, always update the date.
 ##########################################################################################
 
-PDSTEMPLATE_VERSION_ID = '1.0 (2023-06-26)'     # Branched from XmlTemplate
+PDSTEMPLATE_VERSION_ID = '1.0 (2023-06-26)'     # Branched from XmlTemplate   XXX
 
 # namedtuple class definition
 #
@@ -63,7 +63,7 @@ class TemplateError(ValueError):    # class for all template parsing exceptions
 class PdsTemplate:
     """Class to generate PDS labels based on templates.
 
-    See README.md for details.
+    See README.md for details. XXX
     """
 
     # This pattern matches a header record;
@@ -116,8 +116,7 @@ class PdsTemplate:
                 logger.info('Terminator is <LF>')
                 self.terminator = '\n'
             else:
-                raise ValueError('Invalid terminator in template: '
-                                 + str(self.template_path))
+                raise ValueError(f'Invalid terminator in template: {self.template_path}')
 
             # Convert to a list
             records = content.split(self.terminator)
@@ -502,12 +501,12 @@ class PdsTemplate:
         """Return the MD5 checksum of the file specified by `filepath`."""
 
         blocksize = 65536
-        f = open(filepath, 'rb')
-        hasher = hashlib.md5()
-        buf = f.read(blocksize)
-        while len(buf) > 0:
-            hasher.update(buf)
+        with open(filename, 'rb') as f:
+            hasher = hashlib.md5()
             buf = f.read(blocksize)
+            while len(buf) > 0:
+                hasher.update(buf)
+                buf = f.read(blocksize)
 
         f.close()
         return hasher.hexdigest()

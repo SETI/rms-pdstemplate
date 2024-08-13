@@ -1,6 +1,7 @@
 [![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/rms-pdstemplate)](https://github.com/SETI/rms-pdstemplate/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/SETI/rms-pdstemplate)](https://github.com/SETI/rms-pdstemplate/releases)
 [![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/rms-pdstemplate/run-tests.yml?branch=main)](https://github.com/SETI/rms-pdstemplate/actions)
+[![Documentation Status](https://readthedocs.org/projects/rms-pdstemplate/badge/?version=latest)](https://rms-pdstemplate.readthedocs.io/en/latest/?badge=latest)
 [![Code coverage](https://img.shields.io/codecov/c/github/SETI/rms-pdstemplate/main?logo=codecov)](https://codecov.io/gh/SETI/rms-pdstemplate)
 <br />
 [![PyPI - Version](https://img.shields.io/pypi/v/rms-pdstemplate)](https://pypi.org/project/rms-pdstemplate)
