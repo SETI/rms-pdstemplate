@@ -1,4 +1,9 @@
 coverage
+flake8
+myst-parser
 pytest
 rms-julian
 rms-pdslogger
+sphinx
+sphinxcontrib-napoleon
+sphinx-rtd-theme

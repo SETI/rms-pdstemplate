@@ -35,6 +35,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/SETI/rms-pdstemplate"
+Documentation = "https://rms-pdstemplate.readthedocs.io/en/latest"
 Repository = "https://github.com/SETI/rms-pdstemplate"
 Source = "https://github.com/SETI/rms-pdstemplate"
 Issues = "https://github.com/SETI/rms-pdstemplate/issues"
