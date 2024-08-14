@@ -22,25 +22,37 @@
 [![Number of GitHub stars](https://img.shields.io/github/stars/SETI/rms-pdstemplate)](https://github.com/SETI/rms-pdstemplate/stargazers)
 ![GitHub forks](https://img.shields.io/github/forks/SETI/rms-pdstemplate)
 
-# rms-pdstemplate
+# Introduction
 
-PDS Ring-Moon Systems Node, SETI Institute
+`pdstemplate` is a Python module that provide the `PdsTemplate` class, used to generate
+PDS labels based on templates. Although specifically designed to facilitate data
+deliveries by PDS data providers, the template system is generic and could be used to
+generate files from templates for other purposes.
 
-Supported versions: Python >= 3.8
+`pdstemplate` is a product of the [PDS Ring-Moon Systems Node](https://pds-rings.seti.org).
 
-Class to generate PDS labels based on templates.
+# Installation
 
-The general procedure is as follows.
+The `pdstemplate` module is available via the `rms-pdstemplate` package on PyPI and can be
+installed with:
+
+```sh
+pip install rms-template
+```
+
+# Getting Started
+
+The general procedure is as follows:
 
 1. Create a template object by calling the PdsTemplate constructor to read a template
 file:
 
-      `template = PdsTemplate(template_file_path)`
+        template = PdsTemplate(template_file_path)
 
 2. Create a dictionary that contains the parameter values to use inside the label.
 3. Construct the label as follows:
 
-      `template.write(dictionary, label_file)`
+        template.write(dictionary, label_file)
 
     This will create a new label of the given name, using the values in the given
     dictionary. Once the template has been constructed, steps 2 and 3 can be repeated any
@@ -53,7 +65,7 @@ expressions that will be replaced when the template's write() method is called.
 
 In general, everything between dollar signs `$` in the template is interpreted as a
 Python expression to be evaluated. The result of this expression then replaces it
-inside the label. For example, if `dictionary['INSTRUMENT_ID'] = 'ISSWA'`, then
+inside the label. For example, if `dictionary['INSTRUMENT_ID'] == 'ISSWA'`, then
 
     <instrument_id>$INSTRUMENT_ID$</instrument_id>
 
@@ -150,8 +162,8 @@ The following pre-defined functions can be used inside any expression in the tem
 
 `NOESCAPE(text)`:
         If the template is XML, evaluated expressions are "escaped" to ensure that they
-        are suitable for embedding in a PDS label. For example, ">" inside a string will
-        be replaced by "&gt;". This function prevents `text` from being escaped in the
+        are suitable for embedding in a PDS4 label. For example, ">" inside a string will
+        be replaced by `&gt;`. This function prevents `text` from being escaped in the
         label, allowing it to contain literal XML.
 
 `RAISE(exception, message)`:
@@ -167,7 +179,7 @@ The following pre-defined functions can be used inside any expression in the tem
         The directory path to the template file.
 
 `VERSION_ID()`:
-        Version ID of this module, e.g., "1.0 (2022-10-05)".
+        Version ID of this module, e.g., "v0.1.0".
 
 `WRAP(left, right, text)`:
         Format `text` to fit between the `left` and `right` column numbers. The

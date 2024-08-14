@@ -501,7 +501,7 @@ class PdsTemplate:
         """Return the MD5 checksum of the file specified by `filepath`."""
 
         blocksize = 65536
-        with open(filename, 'rb') as f:
+        with open(filepath, 'rb') as f:
             hasher = hashlib.md5()
             buf = f.read(blocksize)
             while len(buf) > 0:
