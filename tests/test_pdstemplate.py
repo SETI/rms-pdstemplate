@@ -3,11 +3,13 @@
 ##########################################################################################
 
 import os
+import pathlib
 import re
+import sys
 import tempfile
 import unittest
 
-from pdstemplate import PdsTemplate, PDSTEMPLATE_VERSION_ID
+from pdstemplate import PdsTemplate, TemplateError, PDSTEMPLATE_VERSION_ID
 
 
 class Test_Substitutions(unittest.TestCase):
@@ -421,6 +423,29 @@ class Test_Headers(unittest.TestCase):
             <b></b>\n"""
         self.assertEqual(T.generate(D), V)
 
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $END_FOR
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         '$END_FOR without matching $FOR at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $FOR
+                $END_FOR
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'missing argument for $FOR at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $FOR(5)
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'unterminated $FOR block starting at line 2')
+
+
         # $IF, $ELSE_IF, $ELSE, $END_IF
         T = PdsTemplate('t.xml', content="""\
         $IF(x==0)
@@ -453,6 +478,36 @@ class Test_Headers(unittest.TestCase):
         self.assertEqual(T.generate({'x': [],   'y': 0}),
                          '        <x>False ([], 0)</x>\n')
 
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $END_IF
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         '$END_IF without matching $IF at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $IF
+                $END_IF
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'missing argument for $IF at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $IF(5)
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'unterminated $IF block starting at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $IF(5)
+                $ELSE
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'unterminated $ELSE block starting at line 3')
+
         # $ONCE
         T = PdsTemplate('t.xml', content="""<a></a>
             $ONCE
@@ -481,6 +536,19 @@ class Test_Headers(unittest.TestCase):
         V = '<b>SATURN<b>\n'
         self.assertEqual(T.generate(D), V)
 
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content='$ONCE(5)\n')
+        self.assertEqual(str(context.exception),
+                         '$ONCE expression does not define a variable at line 1')
+
+        T = PdsTemplate('t.xml', content='$ONCE(a=5/0)\n')
+        V = """[[[ZeroDivisionError(division by zero) at line 1]]]"""
+        with self.assertRaises(ZeroDivisionError) as context:
+            T.generate({}, raise_exceptions=True)
+        self.assertEqual(str(context.exception),
+                         'ZeroDivisionError(division by zero) at line 1')
+        self.assertEqual(T.generate({}), V)
+
         # $NOTE and $END_NOTE
         T = PdsTemplate('t.xml', content="""<a></a>
             $NOTE
@@ -490,6 +558,28 @@ class Test_Headers(unittest.TestCase):
         V = """<a></a>
             <b></b>\n"""
         self.assertEqual(T.generate(D), V)
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $END_NOTE
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         '$END_NOTE without matching $NOTE at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $NOTE(a=5)
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'extraneous argument for $NOTE at line 2')
+
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content="""<a></a>
+                $NOTE
+                <b></b>\n""")
+        self.assertEqual(str(context.exception),
+                         'unterminated $NOTE block starting at line 2')
+
 
         # Nesting...
 
@@ -593,3 +683,152 @@ class Test_Terminators(unittest.TestCase):
 
         V = '<a>1</a>\n<b>2</b>\n<c>3</c>\n'
         self.assertEqual(T.generate(D, terminator='\n'), V)
+
+        with self.assertRaises(ValueError) as context:
+            T = PdsTemplate('t.xml', content='<a>1</a>\n<b>2</b>\n<c>3</c>\t')
+        self.assertEqual(str(context.exception), 'Invalid terminator in template: t.xml')
+
+class Test_Misc(unittest.TestCase):
+
+    def runTest(self):
+
+        # Supplying content as a list
+        T = PdsTemplate('t.xml', content=[
+            '$FOR(I=range(ICOUNT))\n',
+            '$NOTE\n',
+            'inner loop should not be executed!\n',
+            '$FOR(J=range(JCOUNT))\n',
+            '<indices>$I$, $J$</indices>\n',
+            '$END_FOR\n',
+            '$END_NOTE\n',
+            '<index>$I$</index>\n',
+            '$END_FOR\n'
+        ])
+        D = {'ICOUNT': 4, 'JCOUNT': 12}
+        V = """<index>0</index>
+<index>1</index>
+<index>2</index>
+<index>3</index>\n"""
+        self.assertEqual(T.generate(D), V)
+
+        # Disabling auto-detection of XML
+        T = PdsTemplate('t.xml', content='$val$\n')
+        print(T.xml)
+        D = {'val': '&'}
+        V = '&\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='<?xml\n$val$\n')
+        V = '<?xml\n&amp;\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='<?xml $val$\n', xml=False)
+        V = '<?xml &\n'
+        self.assertEqual(T.generate(D), V)
+
+        # Raised exceptions
+        T = PdsTemplate('t.xml', content='$1/0$\n', xml=False)
+        D = {}
+        V = '[[[ZeroDivisionError(division by zero) at line 1]]]\n'
+        self.assertEqual(T.generate(D), V)
+
+        with self.assertRaises(ZeroDivisionError):
+            T.generate(D, raise_exceptions=True)
+
+        # Mismatched $
+        with self.assertRaises(TemplateError) as context:
+            T = PdsTemplate('t.xml', content='$\n')
+        self.assertEqual(str(context.exception), 'mismatched "$" at line 1')
+
+        # Float pretty-printing
+        T = PdsTemplate('t.xml', content='$0.1+0.2$\n', xml=False)
+        D = {}
+        V = '0.3\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='$1.0000000000000241$\n', xml=False)
+        D = {}
+        V = '1.\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='$0.9999999999999865$\n', xml=False)
+        D = {}
+        V = '1.\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='$-1.0000000000000241$\n', xml=False)
+        D = {}
+        V = '-1.\n'
+        self.assertEqual(T.generate(D), V)
+
+        T = PdsTemplate('t.xml', content='$-0.9999999999999865$\n', xml=False)
+        D = {}
+        V = '-1.\n'
+        self.assertEqual(T.generate(D), V)
+
+
+class Test_Files(unittest.TestCase):
+
+    def runTest(self):
+
+        update_expected = True
+
+        self.maxDiff = 100000
+
+        root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
+        test_file_dir = root_dir / 'test_files'
+
+        test_template_file = test_file_dir / 'functions_template.txt'
+        test_expected_file = test_file_dir / 'functions_expected.txt'
+        bin_data_file = test_file_dir / 'data_file.bin'
+        text_data_file = test_file_dir / 'data_file.txt'
+
+        if not update_expected:
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
+
+        for_list = ['a', 'b', 'c'
+                    ]
+        template = PdsTemplate(test_template_file)
+        dictionary = {'bin_data_file': str(bin_data_file),
+                      'text_data_file': str(text_data_file),
+                      'for_list': for_list}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            test_output_file = f'{temp_dir}/functions_output.txt'
+            template.write(dictionary, test_output_file)
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
+
+        if update_expected:
+            print(result)
+            with open(test_expected_file, 'w') as fp:
+                fp.write(result)
+        else:
+            print(result)
+            self.assertEqual(expected, result)
+
+
+        test_template_file = test_file_dir / 'xml_template.xml'
+        test_expected_file = test_file_dir / 'xml_expected.txt'
+
+        if not update_expected:
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
+
+        template = PdsTemplate(test_template_file)
+        dictionary = {'escape_text': '<&>'}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            test_output_file = f'{temp_dir}/functions_output.txt'
+            template.write(dictionary, test_output_file)
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
+
+        if update_expected:
+            print(result)
+            with open(test_expected_file, 'w') as fp:
+                fp.write(result)
+        else:
+            print(result)
+            self.assertEqual(expected, result)

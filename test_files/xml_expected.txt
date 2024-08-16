@@ -1,0 +1,2 @@
+<?xml
+NOESCAPE: &lt;&amp;&gt; <&>

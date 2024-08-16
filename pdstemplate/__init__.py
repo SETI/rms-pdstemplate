@@ -184,7 +184,8 @@ class PdsTemplate:
         if lines[0].find('<?xml') != -1:
             return True
 
-        if len(lines[0].split('<')) == len(lines[0].split('>')):
+        if (len(lines[0].split('<')) == len(lines[0].split('>')) and
+            len(lines[0].split('<')) > 1):
             return True
 
         return False
@@ -281,7 +282,7 @@ class PdsTemplate:
         for block in self.blocks:
             try:
                 results += block.execute(state)
-            except Exception as e:
+            except Exception as e:  # pragma: no coverage - this is impossible to fake
                 state.logger.error('Error generating label', state.label_path)
                 if state.raise_exceptions:
                     raise
@@ -443,14 +444,13 @@ class PdsTemplate:
                 digits = 3
 
             tai = julian.tai_from_tdb(value)
-            (day, sec) = julian.day_sec_from_tai(tai + offset)
 
             # Convert to ISO format or return seconds
-            if date_type == 'YMD':
-                return julian.ymdhms_format_from_tai(day, sec, 'T', digits, 'Z')
-            elif date_type == 'YD':
-                return julian.ydhms_format_from_tai(value + offset, 'T', digits, 'Z')
+            if date_type in ('YMDT', 'YDT'):
+                return julian.format_tai(tai + offset, order=date_type, sep='T',
+                                         digits=digits, suffix='Z')
             else:
+                (day, sec) = julian.day_sec_from_tai(tai + offset)
                 return sec
 
         if value.strip() == 'UNK':
@@ -480,11 +480,9 @@ class PdsTemplate:
             digits = -1         # suppress decimal point
 
         # Convert to ISO format or return seconds
-        if date_type == 'YMD':
-            return julian.ymdhms_format_from_day_sec(day, sec, 'T', digits, 'Z')
-        elif date_type == 'YD':
-            return julian.ydhms_format_from_day_sec(day, sec, sep='T', digits=digits,
-                                                    suffix='Z')
+        if date_type in ('YMDT', 'YDT'):
+            return julian.format_day_sec(day, sec, order=date_type, sep='T',
+                                         digits=digits, suffix='Z')
         else:
             return sec
 
@@ -504,7 +502,7 @@ class PdsTemplate:
             str: The time in the format "yyyy-mm-ddThh:mm:ss[.fff]Z".
         """
 
-        return PdsTemplate._DATETIME(time, offset, digits, date_type='YMD')
+        return PdsTemplate._DATETIME(time, offset, digits, date_type='YMDT')
 
     @staticmethod
     def DATETIME_DOY(time, offset=0, digits=None):
@@ -522,7 +520,7 @@ class PdsTemplate:
             str: The time in the format "yyyy-dddThh:mm:ss[.fff]Z".
         """
 
-        return PdsTemplate._DATETIME(time, offset, digits, date_type='YD')
+        return PdsTemplate._DATETIME(time, offset, digits, date_type='YDT')
 
     @staticmethod
     def DAYSECS(time):
@@ -640,7 +638,7 @@ class PdsTemplate:
         timestamp = os.path.getmtime(filepath)
         try:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
-        except AttributeError:
+        except AttributeError:  # pragma: no cover
             # Python < 3.11
             utc_dt = datetime.datetime.utcfromtimestamp(timestamp)
         return utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -821,10 +819,6 @@ class _LabelState(object):
         self.local_dicts = [{}]
         self.error_count = 0
 
-    def copy(self):
-        return _LabelState(self.global_dict, self.label_path, self.terminator,
-                           self.raise_exceptions, self.logger)
-
 
 ##########################################################################################
 # _PdsBlock class and subclasses
@@ -898,10 +892,11 @@ class _PdsBlock(object):
             raise TemplateError(f'$END_FOR without matching $FOR at line {line}')
         if header == '$END_NOTE':
             raise TemplateError(f'$END_NOTE without matching $NOTE at line {line}')
-        if header in _PdsBlock.ELSE_HEADERS:
+        if header in _PdsBlock.ELSE_HEADERS:  # pragma: no coverage - can't get here
             raise TemplateError(f'{header} without matching $IF at line {line}')
 
-        raise TemplateError(f'unrecognized header at line {line}: {header}({arg})')
+        raise TemplateError(f'unrecognized header at line {line}: {header}({arg})'
+                            )  # pragma: no coverage - can't get here
 
     def preprocess_body(self):
         """Preprocess body text from the template by locating all of the embedded
@@ -1348,6 +1343,7 @@ class _PdsIfBlock(_PdsBlock):
 
         if self.name:
             state.local_dicts[-1][self.name] = status
+            print(self.name, status)
 
         if status:
             return _PdsBlock.execute(self, state)

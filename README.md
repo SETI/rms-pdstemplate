@@ -113,8 +113,8 @@ The following pre-defined functions can be used inside any expression in the tem
 - [`BOOL(value, true='true', false='false')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BOOL):
   Return `true` if `value` evaluates to Boolean True; otherwise, return `false`.
 
-- [`COUNTER(name)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
-  The current value of a counter identified by `name`, starting at 1.
+- [`COUNTER(name, reset=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
+  The current value of a counter identified by `name`, starting at 1. If `reset` is True, the counter is reset to 0.
 
 - [`CURRENT_TIME(date_only=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_TIME):
   The current time in the local time zone as a string of the form
@@ -172,8 +172,8 @@ The following pre-defined functions can be used inside any expression in the tem
 - [`RAISE(exception, message)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
   Raise an exception with the given class `exception` and the `message`.
 
-- [`REPLACE_NA(value, if_na)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
-  Return `if_na` if `value` equals "N/A"; otherwise, return `value`.
+- [`REPLACE_NA(value, if_na, flag='N/A')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
+  Return `if_na` if `value` equals "N/A" (or `flag` if specified); otherwise, return `value`.
 
 - [`REPLACE_UNK(value, if_unk)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_UNK):
   Return `if_unk` if `value` equals "UNK"; otherwise, return `value`.
