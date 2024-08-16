@@ -446,7 +446,6 @@ class Test_Headers(unittest.TestCase):
         self.assertEqual(str(context.exception),
                          'unterminated $FOR block starting at line 2')
 
-
         # $IF, $ELSE_IF, $ELSE, $END_IF
         T = PdsTemplate('t.xml', content="""\
         $IF(x==0)
@@ -581,7 +580,6 @@ class Test_Headers(unittest.TestCase):
         self.assertEqual(str(context.exception),
                          'unterminated $NOTE block starting at line 2')
 
-
         # Nesting...
 
         T = PdsTemplate('t.xml', content="""<a></a>
@@ -688,6 +686,7 @@ class Test_Terminators(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             T = PdsTemplate('t.xml', content='<a>1</a>\n<b>2</b>\n<c>3</c>\t')
         self.assertEqual(str(context.exception), 'Invalid terminator in template: t.xml')
+
 
 class Test_Misc(unittest.TestCase):
 
@@ -813,7 +812,6 @@ class Test_Files(unittest.TestCase):
         root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
         test_file_dir = root_dir / 'test_files'
 
-
         # Test predefined functions
 
         test_template_file = test_file_dir / 'functions_template.txt'
@@ -845,7 +843,6 @@ class Test_Files(unittest.TestCase):
             print(result)
             self.assertEqual(expected, result)
 
-
         # Test XML escaping
 
         test_template_file = test_file_dir / 'xml_template.xml'
@@ -871,7 +868,6 @@ class Test_Files(unittest.TestCase):
         else:
             print(result)
             self.assertEqual(expected, result)
-
 
         # Test writing files with template errors
 
@@ -905,7 +901,6 @@ class Test_Files(unittest.TestCase):
             except ValueError as e:
                 self.assertEqual(str(e), 'ValueError(This is the ValueError) at line 1')
                 self.assertEqual(T.ERROR_COUNT, 1)
-
 
         # Test writing files with different terminators
 

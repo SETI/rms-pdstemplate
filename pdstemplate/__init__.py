@@ -185,7 +185,7 @@ class PdsTemplate:
             return True
 
         if (len(lines[0].split('<')) == len(lines[0].split('>')) and
-            len(lines[0].split('<')) > 1):
+                len(lines[0].split('<')) > 1):
             return True
 
         return False
