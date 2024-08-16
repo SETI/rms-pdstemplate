@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+import pdslogger
 from pdstemplate import PdsTemplate, TemplateError, PDSTEMPLATE_VERSION_ID
 
 
@@ -713,7 +714,6 @@ class Test_Misc(unittest.TestCase):
 
         # Disabling auto-detection of XML
         T = PdsTemplate('t.xml', content='$val$\n')
-        print(T.xml)
         D = {'val': '&'}
         V = '&\n'
         self.assertEqual(T.generate(D), V)
@@ -730,6 +730,28 @@ class Test_Misc(unittest.TestCase):
         T = PdsTemplate('t.xml', content='$1/0$\n', xml=False)
         D = {}
         V = '[[[ZeroDivisionError(division by zero) at line 1]]]\n'
+        self.assertEqual(T.generate(D), V)
+
+        with self.assertRaises(ZeroDivisionError):
+            T.generate(D, raise_exceptions=True)
+
+        T = PdsTemplate('t.xml', content="""
+            $IF(1/0)
+                SOMETHING
+            $END_IF\n""")
+        D = {}
+        V = '\n[[[ZeroDivisionError(division by zero) at line 2]]]'
+        self.assertEqual(T.generate(D), V)
+
+        with self.assertRaises(ZeroDivisionError):
+            T.generate(D, raise_exceptions=True)
+
+        T = PdsTemplate('t.xml', content="""
+            $FOR(1/0)
+                SOMETHING
+            $END_FOR\n""")
+        D = {}
+        V = '\n[[[ZeroDivisionError(division by zero) at line 2]]]'
         self.assertEqual(T.generate(D), V)
 
         with self.assertRaises(ZeroDivisionError):
@@ -766,17 +788,33 @@ class Test_Misc(unittest.TestCase):
         V = '-1.\n'
         self.assertEqual(T.generate(D), V)
 
+        # Logging
+        PdsTemplate.set_logger(pdslogger.EasyLogger())
+        self.assertIsInstance(PdsTemplate._GLOBAL_LOGGER, pdslogger.EasyLogger)
+        PdsTemplate.set_logger(None)
+        self.assertIsInstance(PdsTemplate._GLOBAL_LOGGER, pdslogger.NullLogger)
+
+        # Overriding predefined function
+        # Why someone would do this I have no idea...but we support it
+        T = PdsTemplate('t.xml', content='$FILE_BYTES(1)$\n')
+        D = {'FILE_BYTES': lambda x: x+1}
+        V = '2\n'
+        self.assertEqual(T.generate(D), V)
+
 
 class Test_Files(unittest.TestCase):
 
     def runTest(self):
 
-        update_expected = True
+        update_expected = False
 
         self.maxDiff = 100000
 
         root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
         test_file_dir = root_dir / 'test_files'
+
+
+        # Test predefined functions
 
         test_template_file = test_file_dir / 'functions_template.txt'
         test_expected_file = test_file_dir / 'functions_expected.txt'
@@ -787,8 +825,7 @@ class Test_Files(unittest.TestCase):
             with open(test_expected_file, 'r') as fp:
                 expected = fp.read()
 
-        for_list = ['a', 'b', 'c'
-                    ]
+        for_list = ['a', 'b', 'c']
         template = PdsTemplate(test_template_file)
         dictionary = {'bin_data_file': str(bin_data_file),
                       'text_data_file': str(text_data_file),
@@ -809,6 +846,8 @@ class Test_Files(unittest.TestCase):
             self.assertEqual(expected, result)
 
 
+        # Test XML escaping
+
         test_template_file = test_file_dir / 'xml_template.xml'
         test_expected_file = test_file_dir / 'xml_expected.txt'
 
@@ -820,7 +859,7 @@ class Test_Files(unittest.TestCase):
         dictionary = {'escape_text': '<&>'}
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            test_output_file = f'{temp_dir}/functions_output.txt'
+            test_output_file = f'{temp_dir}/xml_output.txt'
             template.write(dictionary, test_output_file)
             with open(test_output_file, 'r') as fp:
                 result = fp.read()
@@ -832,3 +871,76 @@ class Test_Files(unittest.TestCase):
         else:
             print(result)
             self.assertEqual(expected, result)
+
+
+        # Test writing files with template errors
+
+        test_template_file = test_file_dir / 'raises_template.txt'
+        test_expected_file = test_file_dir / 'raises_expected.txt'
+
+        if not update_expected:
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            test_output_file = f'{temp_dir}/raises_output.txt'
+
+            T = PdsTemplate(test_template_file)
+            T.write({}, test_output_file)
+            self.assertEqual(T.ERROR_COUNT, 1)
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
+
+            if update_expected:
+                print(result)
+                with open(test_expected_file, 'w') as fp:
+                    fp.write(result)
+            else:
+                print(result)
+                self.assertEqual(expected, result)
+
+            try:
+                _ = T.write({}, test_output_file, raise_exceptions=True)
+                self.assertTrue(False, "This should have raised an exception but didn't")
+            except ValueError as e:
+                self.assertEqual(str(e), 'ValueError(This is the ValueError) at line 1')
+                self.assertEqual(T.ERROR_COUNT, 1)
+
+
+        # Test writing files with different terminators
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            test_output_file = f'{temp_dir}/terminator_output.txt'
+
+            T = PdsTemplate('t.xml', content='value1\nvalue2\n')
+            T.write({}, test_output_file, terminator='\r\n')
+
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read()
+            result = result.decode('utf-8')
+            self.assertEqual(result, 'value1\r\nvalue2\r\n')
+
+            T = PdsTemplate('t.xml', content='value1\r\nvalue2\r\n')
+            T.write({}, test_output_file, terminator='\r\n')
+
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read()
+            result = result.decode('utf-8')
+            self.assertEqual(result, 'value1\r\nvalue2\r\n')
+
+            T = PdsTemplate('t.xml', content='value1\r\nvalue2\r\n')
+            T.write({}, test_output_file, terminator='\n')
+
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read()
+            result = result.decode('utf-8')
+            self.assertEqual(result, 'value1\nvalue2\n')
+
+            # Missing end terminator
+            T = PdsTemplate('t.xml', content='$NOTE: HI\n')
+            T.write({}, test_output_file, terminator='\r\n')
+
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read()
+            result = result.decode('utf-8')
+            self.assertEqual(result, '\r\n')

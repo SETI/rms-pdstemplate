@@ -325,8 +325,6 @@ class PdsTemplate:
         state.logger.info('Generating label', str(state.label_path))
 
         content = self.generate(dictionary, _state=state)
-        if state.terminator != self.terminator:
-            content = content.replace('\n', state.terminator)
 
         # Summarize the errors if necessary
         if state.error_count >= 1:
@@ -819,6 +817,12 @@ class _LabelState(object):
         self.local_dicts = [{}]
         self.error_count = 0
 
+    # def copy(self):
+    #     return _LabelState(self.global_dict, self.label_path,
+    #                        terminator=self.terminator,
+    #                        raise_exceptions=self.raise_exceptions,
+    #                        logger=self.logger)
+
 
 ##########################################################################################
 # _PdsBlock class and subclasses
@@ -1114,7 +1118,9 @@ class _PdsOnceBlock(_PdsBlock):
             raise TemplateError(f'{self.header} expression does not define a variable ' +
                                 f'at line {line}')
 
-        if header.startswith('$ONCE-') and arg:
+        if header.startswith('$ONCE-') and arg:  # pragma: no coverage
+            # This can't happen in the current code because IF, FOR, and NOTE all
+            # ignore the arg that's present in the template and pass in '' instead
             raise TemplateError(f'extraneous argument for {self.header} at line {line}')
 
     def execute(self, state):
@@ -1343,7 +1349,6 @@ class _PdsIfBlock(_PdsBlock):
 
         if self.name:
             state.local_dicts[-1][self.name] = status
-            print(self.name, status)
 
         if status:
             return _PdsBlock.execute(self, state)
