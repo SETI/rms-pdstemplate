@@ -107,87 +107,89 @@ To embed a literal `$` inside a label, enter `$$` into the template.
 The following pre-defined functions can be used inside any expression in the template.
 
 
-- [`BASENAME(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BASENAME):
+- [`BASENAME(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BASENAME):
   The basename of `filepath`, with leading directory path removed.
 
-- [`BOOL(value, true='true', false='false')`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BOOL):
+- [`BOOL(value, true='true', false='false')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BOOL):
   Return `true` if `value` evaluates to Boolean True; otherwise, return `false`.
 
-- [`COUNTER(name)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
-  The current value of a counter identified by `name`, starting at 1.
+- [`COUNTER(name, reset=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
+  The current value of a counter identified by `name`, starting at 1. If `reset` is True, the counter is reset to 0.
 
-- [`CURRENT_TIME(date_only=False)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_TIME):
+- [`CURRENT_TIME(date_only=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_TIME):
   The current time in the local time zone as a string of the form
   "yyyy-mm-ddThh:mm:sss" if `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
-- [`CURRENT_ZULU(date_only=False)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_ZULU):
+- [`CURRENT_ZULU(date_only=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_ZULU):
   The current UTC time as a string of the form "yyyy-mm-ddThh:mm:sssZ" if
   `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
-- [`DATETIME(time, offset=0, digits=None)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME):
+- [`DATETIME(time, offset=0, digits=None)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME):
   Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
   format with a trailing "Z". An optional `offset` in seconds can be applied. The
   returned string contains an appropriate number of decimal digits in the seconds
   field unless `digits` is specified explicitly. If `time` is "UNK", then "UNK" is
   returned.
 
-- [`DATETIME_DOY(time, offset=0, digits=None)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME_DOY):
+- [`DATETIME_DOY(time, offset=0, digits=None)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME_DOY):
   Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
   of the form "yyyy-dddThh:mm:ss[.fff]Z". An optional `offset` in seconds can be
   applied. The returned string contains an appropriate number of decimal digits in
   the seconds field unless `digits` is specified explicitly. If `time` is "UNK",
   then "UNK" is returned.
 
-- [`DAYSECS(string)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DAYSECS):
+- [`DAYSECS(string)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DAYSECS):
   The number of elapsed seconds since the most recent midnight. `time` can be
   a date/time string, a time string, or TDB seconds.
 
-- [`FILE_BYTES(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_BYTES):
+- [`FILE_BYTES(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_BYTES):
   The size in bytes of the file specified by `filepath`.
 
-- [`FILE_MD5(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_MD5):
+- [`FILE_MD5(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_MD5):
   The MD5 checksum of the file specified by `filepath`.
 
-- [`FILE_RECORDS(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_RECORDS):
+- [`FILE_RECORDS(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_RECORDS):
   The number of records in the the file specified by `filepath` if it is ASCII; 0
   if the file is binary.
 
-- [`FILE_TIME(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_TIME):
+- [`FILE_TIME(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_TIME):
   The modification time in the local time zone of the file specified by `filepath`
   in the form "yyyy-mm-ddThh:mm:ss".
 
-- [`FILE_ZULU(filepath)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_ZULU):
+- [`FILE_ZULU(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_ZULU):
   The UTC modification time of the the file specified by `filepath` in the form
   "yyyy-mm-ddThh:mm:ssZ".
 
-- [`LABEL_PATH()`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LABEL_PATH):
+- [`LABEL_PATH()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LABEL_PATH):
   The full directory path to the label file being written.
 
-- [`NOESCAPE(text)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.NOESCAPE):
+- [`NOESCAPE(text)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.NOESCAPE):
   If the template is XML, evaluated expressions are "escaped" to ensure that they
   are suitable for embedding in a PDS4 label. For example, ">" inside a string will
   be replaced by `&gt;`. This function prevents `text` from being escaped in the
   label, allowing it to contain literal XML.
 
-- [`RAISE(exception, message)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
+- [`RAISE(exception, message)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
   Raise an exception with the given class `exception` and the `message`.
 
-- [`REPLACE_NA(value, if_na)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
-  Return `if_na` if `value` equals "N/A"; otherwise, return `value`.
+- [`REPLACE_NA(value, if_na, flag='N/A')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
+  Return `if_na` if `value` equals "N/A" (or `flag` if specified); otherwise, return `value`.
 
-- [`REPLACE_UNK(value, if_unk)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_UNK):
+- [`REPLACE_UNK(value, if_unk)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_UNK):
   Return `if_unk` if `value` equals "UNK"; otherwise, return `value`.
 
-- [`TEMPLATE_PATH()`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.TEMPLATE_PATH):
+- [`TEMPLATE_PATH()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.TEMPLATE_PATH):
   The directory path to the template file.
 
-- [`VERSION_ID()`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.VERSION_ID):
+- [`VERSION_ID()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.VERSION_ID):
   Version ID of this module, e.g., "v0.1.0".
 
-- [`WRAP(left, right, text)`](https://rms-solar.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
+- [`WRAP(left, right, text, preserve_single_newlines=True)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
   Format `text` to fit between the `left` and `right` column numbers. The
   first line is not indented, so the text will begin in the column where "$WRAP"
-  first appears in the template.
+  first appears in the template. If `preserve_single_newlines` is true, then all
+  newlines in the string will show up in the resultant text. If false, then
+  single newlines will be considered part of the text flow and will be wrapped.
 
 These functions can also be used directly by the programmer; they are static functions
 of class PdsTemplate.

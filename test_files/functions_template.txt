@@ -1,0 +1,178 @@
+BASENAME1: $BASENAME("/a/b/c.txt")$ = c.txt
+BASENAME2: $BASENAME("../c.txt")$ = c.txt
+BASENAME3: $BASENAME("c.txt")$ = c.txt
+BOOL1: $BOOL(0)$ = false
+BOOL2: $BOOL(1)$ = true
+BOOL3: $BOOL(0.0)$ = false
+BOOL4: $BOOL(1.0)$ = true
+BOOL5: $BOOL("")$ = false
+BOOL6: $BOOL("a")$ = true
+BOOL7: $BOOL(0, true='YES', false='NO')$ = NO
+BOOL8: $BOOL(1, true='YES', false='NO')$ = YES
+COUNTER1: $COUNTER(0)$ = 1
+COUNTER2: $COUNTER(0)$ = 2
+COUNTER3: $COUNTER(0)$ = 3
+COUNTER4: $COUNTER("first")$ $COUNTER("second")$ = 1 1
+COUNTER5: $COUNTER("first")$ = 2
+COUNTER6: $COUNTER("first")$ $COUNTER("second")$ = 3 2
+COUNTER7: $COUNTER("first")$ $COUNTER("second", reset=True)$ = 4 0
+COUNTER8: $COUNTER("first")$ $COUNTER("second")$ = 5 1
+COUNTER9: $COUNTER("first")$ $COUNTER("second")$ $COUNTER(0)$ = 6 2 4
+DATETIME1: $DATETIME(0)$ = 2000-01-01T11:58:55.816Z
+DATETIME2: $DATETIME(0, offset=1.5)$ = 2000-01-01T11:58:57.316Z
+DATETIME3: $DATETIME(0, offset=1.5, digits=5)$ = 2000-01-01T11:58:57.31607Z
+DATETIME4: $DATETIME(0, offset=-DAYSECS(0))$ = 2000-01-01T00:00:00.000Z
+DATETIME5: $DATETIME("UNK", offset=1.5, digits=5)$ = UNK
+DATETIME6: $DATETIME("2000-01-01T00:00:00")$ = 2000-01-01T00:00:00Z
+DATETIME7: $DATETIME("1980-02-03T01:02:03.1234567")$ = 1980-02-03T01:02:03.1234567Z
+DATETIME8: $DATETIME("1980-02-03T01:02:03.1234567", digits=4)$ = 1980-02-03T01:02:03.1235Z
+DATETIME9: $DATETIME("1980-009T01:02:03.1234567", digits=4)$ = 1980-01-09T01:02:03.1235Z
+DATETIME10: $DATETIME("1980-009T01:02:03.1234567", offset=1.5)$ = 1980-01-09T01:02:04.623Z
+DATETIME_DOY1: $DATETIME_DOY(0)$ = 2000-001T11:58:55.816Z
+DATETIME_DOY2: $DATETIME_DOY(0, offset=1.5)$ = 2000-001T11:58:57.316Z
+DATETIME_DOY3: $DATETIME_DOY(0, offset=1.5, digits=5)$ = 2000-001T11:58:57.31607Z
+DATETIME_DOY4: $DATETIME_DOY(0, offset=-DAYSECS(0))$ = 2000-001T00:00:00.000Z
+DATETIME_DOY5: $DATETIME_DOY("UNK", offset=1.5, digits=5)$ = UNK
+DATETIME_DOY6: $DATETIME_DOY("2000-01-01T00:00:00")$ = 2000-001T00:00:00Z
+DATETIME_DOY7: $DATETIME_DOY("1980-02-03T01:02:03.1234567")$ = 1980-034T01:02:03.1234567Z
+DATETIME_DOY8: $DATETIME_DOY("1980-02-03T01:02:03.1234567", digits=4)$ = 1980-034T01:02:03.1235Z
+DATETIME_DOY9: $DATETIME_DOY("1980-009T01:02:03.1234567", digits=4)$ = 1980-009T01:02:03.1235Z
+DATETIME_DOY10: $DATETIME_DOY("1980-009T01:02:03.1234567", offset=1.5)$ = 1980-009T01:02:04.623Z
+DAYSECS1: $DAYSECS(0)$ = 43135.81607273678
+DAYSECS2: $DAYSECS("2020-05-06T00:00:00")$ = 0
+DAYSECS3: $DAYSECS("2020-05-06T12:00:00")$ = 43200
+DAYSECS4: $DAYSECS("2020-05-06T12:02:01.123")$ = 43321.123
+FILE_BYTES1: $FILE_BYTES(text_data_file)$ = 446
+FILE_MD51: $FILE_MD5(text_data_file)$ = 6a02797e9bd04c36d2747233a37f8c7e
+FILE_RECORDS1: $FILE_RECORDS(text_data_file)$ = 6
+FILE_BYTES2: $FILE_BYTES(bin_data_file)$ = 25
+FILE_MD52: $FILE_MD5(bin_data_file)$ = f29713aaf54c6c5badb2f52bc76c7165
+FILE_RECORDS2: $FILE_RECORDS(bin_data_file)$ = 0
+NOESCAPE: <&> NOESCAPE("<&>") = <&> <&>
+REPLACE_NA1: $REPLACE_NA(0, "BAD")$ = 0
+REPLACE_NA2: $REPLACE_NA("N/A", "BAD")$ = BAD
+REPLACE_NA3: $REPLACE_NA(0, "BAD", flag=0)$ = BAD
+REPLACE_UNK1: $REPLACE_UNK(0, "ISUNK")$ = 0
+REPLACE_UNK2: $REPLACE_UNK("UNK", "ISUNK")$ = ISUNK
+$NOTE: This should not be printed
+Something printed here
+$NOTE
+This should not be printed
+This should not be printed
+This should not be printed
+This should not be printed
+This should not be printed
+$END_NOTE
+----------
+$FOR(for_list)
+    $VALUE$ $INDEX$ $LENGTH$
+$END_FOR
+=
+    a 0 3
+    b 1 3
+    c 2 3
+----------
+$FOR(name=for_list)
+    $name$
+$END_FOR
+=
+    a
+    b
+    c
+----------
+$FOR(name, num=for_list)
+    $name$ $num$
+$END_FOR
+=
+    a 0
+    b 1
+    c 2
+----------
+$FOR(name, num, total=for_list)
+    $name$ $num$ $total$
+$END_FOR
+=
+    a 0 3
+    b 1 3
+    c 2 3
+----------
+$IF(DAYSECS("2020-05-06T00:00:00") == 0)
+    TRUE
+$END_IF
+=
+    TRUE
+----------
+$IF(DAYSECS("2020-05-06T00:00:00") == 1)
+    TRUE
+$END_IF
+=
+----------
+$IF(DAYSECS("2020-05-06T00:00:00") == 1)
+    TRUE
+$ELSE
+    FALSE
+$END_IF
+=
+    FALSE
+----------
+$IF(DAYSECS("2020-05-06T00:00:00") == 1)
+    TRUE
+$ELSE_IF(DAYSECS("2020-05-06T00:00:00") == 0)
+    TRUE2
+$END_IF
+=
+    TRUE2
+----------
+$IF(DAYSECS("2020-05-06T00:00:00") == 1)
+    TRUE
+$ELSE_IF(DAYSECS("2020-05-06T00:00:00") == 2)
+    TRUE2
+$ELSE
+    FALSE
+$END_IF
+=
+    FALSE
+----------
+$IF(value=DAYSECS("2020-05-06T00:00:00"))
+    $value$
+$END_IF
+=
+----------
+$IF(value=DAYSECS("2020-05-06T00:00:23.567"))
+    $value$
+$END_IF
+=
+    23.567
+----------
+$IF(0)
+    $IF(1)
+        $IF(0)
+            1
+        $ELSE
+            2
+        $END_IF
+    $ELSE
+        $IF(0)
+            3
+        $ELSE
+            4
+        $END_IF
+    $END_IF
+$ELSE_IF(1)
+    $IF(1)
+        $IF(0)
+            5
+        $ELSE
+            6
+        $END_IF
+    $ELSE
+        $IF(0)
+            7
+        $ELSE
+            8
+        $END_IF
+    $END_IF
+$END_IF
+----------
+=
+            6
