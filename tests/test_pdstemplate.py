@@ -819,8 +819,8 @@ class Test_Files(unittest.TestCase):
         bin_data_file = test_file_dir / 'data_file.bin'
 
         if not update_expected:
-            with open(test_expected_file, 'rb') as fp:
-                expected = fp.read().decode('utf-8')
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
 
         for_list = ['a', 'b', 'c']
         template = PdsTemplate(test_template_file)
@@ -834,6 +834,10 @@ reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Ex
 sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id
 est laborum.
 """
+            # We have to write this here in binary mode because if we check it
+            # into git, when we check it out on Linux/Mac vs Windows we get
+            # different line terminators, and thus different numbers of bytes
+            # and MD5 checksums
             text_data_file = f'{temp_dir}/data_file.txt'
             with open(text_data_file, 'wb') as fp:
                 fp.write(contents.encode('utf-8'))
@@ -842,13 +846,13 @@ est laborum.
                           'for_list': for_list}
             test_output_file = f'{temp_dir}/functions_output.txt'
             template.write(dictionary, test_output_file)
-            with open(test_output_file, 'rb') as fp:
-                result = fp.read().decode('utf-8')
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
 
         if update_expected:
             print(result)
-            with open(test_expected_file, 'wb') as fp:
-                fp.write(result.encode('utf-8'))
+            with open(test_expected_file, 'w') as fp:
+                fp.write(result)
         else:
             print(result)
             self.assertEqual(expected, result)
@@ -859,8 +863,8 @@ est laborum.
         test_expected_file = test_file_dir / 'xml_expected.txt'
 
         if not update_expected:
-            with open(test_expected_file, 'rb') as fp:
-                expected = fp.read().decode('utf-8')
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
 
         template = PdsTemplate(test_template_file)
         dictionary = {'escape_text': '<&>'}
@@ -868,13 +872,13 @@ est laborum.
         with tempfile.TemporaryDirectory() as temp_dir:
             test_output_file = f'{temp_dir}/xml_output.txt'
             template.write(dictionary, test_output_file)
-            with open(test_output_file, 'rb') as fp:
-                result = fp.read().decode('utf-8')
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
 
         if update_expected:
             print(result)
-            with open(test_expected_file, 'wb') as fp:
-                fp.write(result.encode('utf-8'))
+            with open(test_expected_file, 'w') as fp:
+                fp.write(result)
         else:
             print(result)
             self.assertEqual(expected, result)
@@ -885,8 +889,8 @@ est laborum.
         test_expected_file = test_file_dir / 'raises_expected.txt'
 
         if not update_expected:
-            with open(test_expected_file, 'rb') as fp:
-                expected = fp.read().decode('utf-8')
+            with open(test_expected_file, 'r') as fp:
+                expected = fp.read()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             test_output_file = f'{temp_dir}/raises_output.txt'
@@ -894,13 +898,13 @@ est laborum.
             T = PdsTemplate(test_template_file)
             T.write({}, test_output_file)
             self.assertEqual(T.ERROR_COUNT, 1)
-            with open(test_output_file, 'rb') as fp:
-                result = fp.read().decode('utf-8')
+            with open(test_output_file, 'r') as fp:
+                result = fp.read()
 
             if update_expected:
                 print(result)
-                with open(test_expected_file, 'wb') as fp:
-                    fp.write(result.encode('utf-8'))
+                with open(test_expected_file, 'w') as fp:
+                    fp.write(result)
             else:
                 print(result)
                 self.assertEqual(expected, result)
