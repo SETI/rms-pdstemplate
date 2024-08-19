@@ -817,28 +817,38 @@ class Test_Files(unittest.TestCase):
         test_template_file = test_file_dir / 'functions_template.txt'
         test_expected_file = test_file_dir / 'functions_expected.txt'
         bin_data_file = test_file_dir / 'data_file.bin'
-        text_data_file = test_file_dir / 'data_file.txt'
 
         if not update_expected:
-            with open(test_expected_file, 'r') as fp:
-                expected = fp.read()
+            with open(test_expected_file, 'rb') as fp:
+                expected = fp.read().decode('utf-8')
 
         for_list = ['a', 'b', 'c']
         template = PdsTemplate(test_template_file)
-        dictionary = {'bin_data_file': str(bin_data_file),
-                      'text_data_file': str(text_data_file),
-                      'for_list': for_list}
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            contents = """Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
+eiusmod tempor incididunt
+ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation
+ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in
+reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur
+sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id
+est laborum.
+"""
+            text_data_file = f'{temp_dir}/data_file.txt'
+            with open(text_data_file, 'wb') as fp:
+                fp.write(contents.encode('utf-8'))
+            dictionary = {'bin_data_file': str(bin_data_file),
+                          'text_data_file': str(text_data_file),
+                          'for_list': for_list}
             test_output_file = f'{temp_dir}/functions_output.txt'
             template.write(dictionary, test_output_file)
-            with open(test_output_file, 'r') as fp:
-                result = fp.read()
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read().decode('utf-8')
 
         if update_expected:
             print(result)
-            with open(test_expected_file, 'w') as fp:
-                fp.write(result)
+            with open(test_expected_file, 'wb') as fp:
+                fp.write(result.encode('utf-8'))
         else:
             print(result)
             self.assertEqual(expected, result)
@@ -849,8 +859,8 @@ class Test_Files(unittest.TestCase):
         test_expected_file = test_file_dir / 'xml_expected.txt'
 
         if not update_expected:
-            with open(test_expected_file, 'r') as fp:
-                expected = fp.read()
+            with open(test_expected_file, 'rb') as fp:
+                expected = fp.read().decode('utf-8')
 
         template = PdsTemplate(test_template_file)
         dictionary = {'escape_text': '<&>'}
@@ -858,13 +868,13 @@ class Test_Files(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             test_output_file = f'{temp_dir}/xml_output.txt'
             template.write(dictionary, test_output_file)
-            with open(test_output_file, 'r') as fp:
-                result = fp.read()
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read().decode('utf-8')
 
         if update_expected:
             print(result)
-            with open(test_expected_file, 'w') as fp:
-                fp.write(result)
+            with open(test_expected_file, 'wb') as fp:
+                fp.write(result.encode('utf-8'))
         else:
             print(result)
             self.assertEqual(expected, result)
@@ -875,8 +885,8 @@ class Test_Files(unittest.TestCase):
         test_expected_file = test_file_dir / 'raises_expected.txt'
 
         if not update_expected:
-            with open(test_expected_file, 'r') as fp:
-                expected = fp.read()
+            with open(test_expected_file, 'rb') as fp:
+                expected = fp.read().decode('utf-8')
 
         with tempfile.TemporaryDirectory() as temp_dir:
             test_output_file = f'{temp_dir}/raises_output.txt'
@@ -884,13 +894,13 @@ class Test_Files(unittest.TestCase):
             T = PdsTemplate(test_template_file)
             T.write({}, test_output_file)
             self.assertEqual(T.ERROR_COUNT, 1)
-            with open(test_output_file, 'r') as fp:
-                result = fp.read()
+            with open(test_output_file, 'rb') as fp:
+                result = fp.read().decode('utf-8')
 
             if update_expected:
                 print(result)
-                with open(test_expected_file, 'w') as fp:
-                    fp.write(result)
+                with open(test_expected_file, 'wb') as fp:
+                    fp.write(result.encode('utf-8'))
             else:
                 print(result)
                 self.assertEqual(expected, result)
