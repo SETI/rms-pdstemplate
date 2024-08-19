@@ -184,10 +184,12 @@ The following pre-defined functions can be used inside any expression in the tem
 - [`VERSION_ID()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.VERSION_ID):
   Version ID of this module, e.g., "v0.1.0".
 
-- [`WRAP(left, right, text)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
+- [`WRAP(left, right, text, preserve_single_newlines=True)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
   Format `text` to fit between the `left` and `right` column numbers. The
   first line is not indented, so the text will begin in the column where "$WRAP"
-  first appears in the template.
+  first appears in the template. If `preserve_single_newlines` is true, then all
+  newlines in the string will show up in the resultant text. If false, then
+  single newlines will be considered part of the text flow and will be wrapped.
 
 These functions can also be used directly by the programmer; they are static functions
 of class PdsTemplate.
