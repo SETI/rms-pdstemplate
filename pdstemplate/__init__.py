@@ -333,10 +333,10 @@ class PdsTemplate:
 
         # Write the label
         label_path = pathlib.Path(state.label_path)
-        with label_path.open('w') as f:
-            f.write(content)
+        with label_path.open('wb') as f:
+            f.write(content.encode('utf-8'))
             if not content.endswith(state.terminator):
-                f.write(state.terminator)
+                f.write(state.terminator.encode('utf-8'))
 
     ######################################################################################
     # Utility functions
@@ -588,7 +588,9 @@ class PdsTemplate:
             0 if the file is binary.
         """
 
-        with open(filepath) as f:
+        # We intentionally open this in non-binary mode so we don't have to
+        # content with line terminator issues
+        with open(filepath, 'r') as f:
             count = 0
             asciis = 0
             non_asciis = 0
