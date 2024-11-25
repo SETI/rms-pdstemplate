@@ -1,0 +1,148 @@
+##########################################################################################
+# pdstemplate/_utils.py
+##########################################################################################
+
+from collections import namedtuple
+
+from pdslogger import PdsLogger, LoggerError
+
+# Class for all template parsing exceptions
+class TemplateError(LoggerError):
+    pass
+
+# namedtuple class definition
+#
+# This is used to describe any subset of lines in the template containing one header and
+# any label text up to the next header:
+#   header      the header type, e.g., "$FOR" or "$IF" or $END_IF";
+#   arg         any expression following the header, inside parentheses;
+#   line        the line number of the template in which the header appears;
+#   body        the text immediately following this header and up until the next header.
+#
+# When the template file is first read, it is described by a deque of _Section objects. If
+# there is no header before the first line of the template, it is assigned a header type
+# of "$ONCE().
+_Section = namedtuple('_Section', ['header', 'arg', 'line', 'body'])
+
+_NOESCAPE_FLAG = '!!NOESCAPE!!:'    # used internally
+
+##########################################################################################
+# Logger management
+##########################################################################################
+
+# Define the global logger with streamlined output, no handlers so printing to stdout
+_LOGGER = PdsLogger.get_logger('pds.template', timestamps=False, digits=0, lognames=False,
+                               pid=False, indent=True, blanklines=False, level='info')
+
+def set_logger(logger):
+    """Define the global PdsLogger for PdsTemplate and associated tools.
+
+    Parameters:
+        logger (PdsLogger): Logger to use, replacing the default.
+    """
+
+    global _LOGGER
+
+    _LOGGER = logger
+
+
+def get_logger():
+    """The global PdsLogger for PdsTemplate and associated tools."""
+
+    return _LOGGER
+
+
+def set_log_level(level):
+    """Set the minimum level for messages to be logged.
+
+    Parameters:
+        level (int or str, optional):
+            The minimum level of level name for a record to enter the log.
+    """
+
+    _LOGGER.set_level(level)
+
+def set_log_format(**kwargs):
+    """Set the formatting and other properties of the logger.
+
+    Parameters:
+        level (int or str, optional):
+            The minimum level of level name for a record to enter the log.
+        timestamps (bool, optional):
+            True or False, defining whether to include a timestamp in each log record.
+        digits (int, optional):
+            Number of fractional digits in the seconds field of the timestamp.
+        lognames (bool, optional):
+            True or False, defining whether to include the name of the logger in each log
+            record.
+        pid (bool, optional):
+            True or False, defining whether to include the process ID in each log record.
+        indent (bool, optional):
+            True or False, defining whether to include a sequence of dashes in each log
+            record to provide a visual indication of the tier in a logging hierarchy.
+        blanklines (bool, optional):
+            True or False, defining whether to include a blank line in log files when a
+            tier in the hierarchy is closed.
+        colors (bool, optional):
+            True or False, defining whether to color-code the log files generated, for
+            Macintosh only.
+        maxdepth (int, optional):
+            Maximum depth of the logging hierarchy, needed to prevent unlimited recursion.
+    """
+
+    _LOGGER.set_format(**kwargs)
+
+##########################################################################################
+# Line terminator utility
+##########################################################################################
+
+def _check_terminators(filepath, content, crlf=None):
+    """Raise an exception if the given file content is not consistent with the intended
+    line terminator.
+
+    Parameters:
+        filepath (str or pathlib.Path):
+            Path to the file, used for error messages.
+        content (str, bytes, list[str], or list[bytes]):
+            Content of the file as a single string or byte string or else as a list of
+            records such as provided by file.readlines().
+        crlf (bool, optional):
+            True to indicate that the line termination should be <CR><LF>; False for
+            <LF> only. If not specified, the line termination is inferred from the
+            template.
+
+    Returns:
+        bool: True if the terminators are <CR><LF>, False otherwise.
+    """
+
+    # Define <CR><LF> terminator depending on types; split content into a list
+    if isinstance(content, list):
+        crlf_chars = b'\r\n' if isinstance(content[0], bytes) else '\r\n'
+    else:
+        lf_char = b'\n' if isinstance(content, bytes) else '\n'
+        content = content.split(lf_char)
+        if content[-1]:
+            raise TemplateError('missing line terminator at end of file', filepath)
+        content = content[:-1]
+        crlf_chars = b'\r' if isinstance(content[0], bytes) else '\r'
+            # Because the split was on the <LF>, we do not expect <LF>'s in records
+
+    # Define `crlf` if it was not provided
+    if crlf is None:
+        crlf = content[0].endswith(crlf_chars)
+
+    # Validate line terminator in first record
+    crlf = bool(crlf)   # make sure it's really boolean
+    if crlf != content[0].endswith(crlf_chars):
+        name = '<CR><LF>' if crlf else '<LF>'
+        raise TemplateError(f'line terminator is not {name}', filepath)
+
+    # Validate the line terminator in every record
+    for recno, record in enumerate(content):
+        if crlf != record.endswith(crlf_chars):
+            raise TemplateError(f'inconsistent line terminator at line {recno+1}',
+                                filepath)
+
+    return crlf
+
+##########################################################################################
