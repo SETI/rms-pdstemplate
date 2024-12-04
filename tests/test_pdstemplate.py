@@ -4,6 +4,7 @@
 
 import os
 import pathlib
+import platform
 import re
 import sys
 import tempfile
@@ -267,6 +268,9 @@ class Test_Predefined(unittest.TestCase):
         # LABEL_PATH
         T = PdsTemplate('t.xml', content='<path>$LABEL_PATH()$</path>\n')
         label_path = 'path/to/label.xml'
+        if platform.system() == 'Windows':
+            label_path = r'path\to\label.xml'
+
         V = f'<path>{label_path}</path>\n'
         self.assertEqual(T.generate({}, label_path), V)
 
@@ -906,11 +910,11 @@ est laborum.
                 result = fp.read()
 
         if update_expected:
-#             print(result)
+            # print(result)
             with open(test_expected_file, 'w') as fp:
                 fp.write(result)
         else:
-#             print(result)
+            # print(result)
             self.assertEqual(expected, result)
 
         # Test writing files with template errors
@@ -1005,24 +1009,24 @@ class Test_Preprocessor(unittest.TestCase):
         T = PdsTemplate('t.xml', content='text\n', preprocess=hello, args=('rob',))
         self.assertEqual(T.generate({}), 'Hello Rob!\ntext\n')
 
-        T = PdsTemplate('t.xml', content='text\n', preprocess=hello, kwargs={'name':'rob'})
+        T = PdsTemplate('t.xml', content='text\n', preprocess=hello, kwargs={'name': 'rob'})
         self.assertEqual(T.generate({}), 'Hello Rob!\ntext\n')
 
         T = PdsTemplate('t.xml', content='text\n', preprocess=uppercase)
         self.assertEqual(T.generate({}), 'TEXT\n')
 
-        T = PdsTemplate('t.xml', content='text\n', preprocess=[hello,uppercase],
+        T = PdsTemplate('t.xml', content='text\n', preprocess=[hello, uppercase],
                         args=('rob',))
         self.assertEqual(T.generate({}), 'HELLO ROB!\nTEXT\n')
 
-        T = PdsTemplate('t.xml', content='text\n', preprocess=[hello,uppercase],
-                        kwargs={'name':'rob'})
+        T = PdsTemplate('t.xml', content='text\n', preprocess=[hello, uppercase],
+                        kwargs={'name': 'rob'})
         self.assertEqual(T.generate({}), 'HELLO ROB!\nTEXT\n')
 
-        T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase,hello])
+        T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase, hello])
         self.assertEqual(T.generate({}), 'Hello!\nTEXT\n')
 
-        h2 = lambda filepath, content: hello(filepath, content, name='rob')
-        T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase,h2])
+        def h2(filepath, content):
+            return hello(filepath, content, name='rob')
+        T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase, h2])
         self.assertEqual(T.generate({}), 'Hello Rob!\nTEXT\n')
-

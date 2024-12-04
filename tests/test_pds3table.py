@@ -13,9 +13,9 @@ import tempfile
 import time
 import unittest
 
-from pdstemplate import PdsTemplate, TemplateError, get_logger
-from pdstemplate.pds3table import Pds3Table, ANALYZE_PDS3_LABEL, VALIDATE_PDS3_LABEL, \
-                                  LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE, TABLE_VALUE
+from pdstemplate import PdsTemplate, get_logger
+from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
+                                  LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
 from pdstemplate.pds3table import pds3_table_preprocessor
 
 class Test_Pds3Table(unittest.TestCase):
@@ -161,14 +161,14 @@ class Test_Pds3Table(unittest.TestCase):
             paths.remove(outpath)
             paths.remove(tablepath)
             self.assertIsNotNone(re.fullmatch(r'.*/test_20\d\d-\d\d-\d\dT.*\.lbl',
-                                              str(paths[0])))
+                                              paths[0].as_posix()))
             mtime = os.path.getmtime(outpath)
 
             # Validate
             F = io.StringIO()           # capture stdout to a string
             with redirect_stdout(F):
                 template.write({}, outpath, mode='validate')
-            result = F.getvalue()
+            _ = F.getvalue()
 
             self.assertEqual(mtime, os.path.getmtime(outpath))  # file unchanged
 
@@ -186,4 +186,3 @@ class Test_Pds3Table(unittest.TestCase):
         del PdsTemplate._PREDEFINED_FUNCTIONS['LABEL_VALUE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_TABLE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
-

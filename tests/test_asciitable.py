@@ -6,7 +6,7 @@ import pathlib
 import sys
 import unittest
 
-from pdstemplate import PdsTemplate, get_logger, TemplateError
+from pdstemplate import PdsTemplate, TemplateError
 from pdstemplate.asciitable import AsciiTable, ANALYZE_TABLE, TABLE_VALUE
 from pdstemplate.asciitable import _latest_ascii_table
 
