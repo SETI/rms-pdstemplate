@@ -4,8 +4,6 @@ RECORD_BYTES                    = 90
 FILE_RECORDS                    = 332
 ^SKY_GEOMETRY_TABLE             = "GO_0023_sky_summary.tab"
 
-PRODUCT_CREATION_TIME           = 2024-08-17T23:13:26
-
 MISSION_NAME                    = "GALILEO"
 INSTRUMENT_HOST_NAME            = "GALILEO"
 INSTRUMENT_HOST_ID              = "GLL"
