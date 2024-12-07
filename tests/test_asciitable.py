@@ -273,4 +273,3 @@ class Test_AsciiTable(unittest.TestCase):
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_TABLE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
         _reset_ascii_table()
-

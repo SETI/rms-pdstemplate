@@ -890,11 +890,11 @@ est laborum.
                 result = fp.read()
 
         if update_expected:
-#             print(result)
+            # print(result)
             with open(test_expected_file, 'w') as fp:
                 fp.write(result)
         else:
-#             print(result)
+            # print(result)
             self.assertEqual(expected, result)
 
         # Test XML escaping
@@ -944,11 +944,11 @@ est laborum.
                 result = fp.read()
 
             if update_expected:
-#                 print(result)
+                # print(result)
                 with open(test_expected_file, 'w') as fp:
                     fp.write(result)
             else:
-#                 print(result)
+                # print(result)
                 self.assertEqual(expected, result)
 
             try:

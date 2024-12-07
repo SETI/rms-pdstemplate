@@ -189,7 +189,6 @@ class Test_Pds3Table(unittest.TestCase):
                                   preprocess=pds3_table_preprocessor, kwargs=kwargs,
                                   crlf=True)
 
-        from pdstemplate.asciitable import TABLE_VALUE, _latest_ascii_table
         self.maxDiff = None
         with open(test_file_dir/'sky_summary_template_preprocessed.txt', 'r') as f:
             answer = f.read()
