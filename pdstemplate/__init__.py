@@ -31,10 +31,9 @@ except ImportError:                                                 # pragma: no
 from ._utils import TemplateError
     # Unused here but included to support "from pdstemplate import TemplateError"
 
-from ._utils import _Section, _NOESCAPE_FLAG
+from ._utils import _NOESCAPE_FLAG, getenv_include_dirs
 from ._utils import set_logger, get_logger, set_log_level, set_log_format
-
-from ._pdsblock import _PdsBlock
+from ._pdsblock import _PdsBlock, _PdsIncludeBlock
 
 
 class PdsTemplate:
@@ -42,17 +41,6 @@ class PdsTemplate:
 
     See https://rms-pdstemplate.readthedocs.io/en/latest/module.html for details.
     """
-
-    # This pattern matches a header record;
-    #  groups(1) = line number; groups(2) = header; groups(3) = argument in parentheses
-    _HEADER_WORDS = ['IF', 'ELSE_IF', 'ELSE', 'END_IF', 'FOR', 'END_FOR', 'ONCE', 'NOTE',
-                     'END_NOTE']
-
-    # This regular expression splits up the content of the template at the location of
-    # each header. For each match, it returns three groups: a leading line number, the
-    # header word ("IF", "FOR", etc.), and text inside the parentheses, if any.
-    _HEADER_PATTERN = re.compile(r' *\$(\d+):(' + '|'.join(_HEADER_WORDS) + ')' +
-                                 r'(\(.*\)|) *\n')
 
     # We need to handle certain attributes as class variables because we need to support
     # the various default functions such as LABEL_PATH(), etc., and these function execute
@@ -96,13 +84,17 @@ class PdsTemplate:
                 directory containing `template` is always searched first. Note that
                 include paths can also be specified using the environment variable
                 PDSTEMPLATE_INCLUDES, which should contain one or more directory paths
-                separated by colons.
+                separated by colons. Any directories specified here are searched before
+                those defined by PDSTEMPLATE_INCLUDES.
         """
 
         self.template_path = pathlib.Path(template)
         PdsTemplate._CURRENT_TEMPLATE = self
         PdsTemplate._CURRENT_LABEL_PATH = ''
         PdsTemplate._CURRENT_GLOBAL_DICT = {}
+
+        includes = [includes] if isinstance(includes, (str, pathlib.Path)) else includes
+        self._includes = [pathlib.Path(dir) for dir in includes]
 
         logger = get_logger()
         logger.info('New PdsTemplate for', self.template_path)
@@ -126,15 +118,17 @@ class PdsTemplate:
 
             # Convert to a single string with <LF> line terminators
             if not isinstance(content, list):
-                content = content.split('\n')[:-1]
+                content = content.split('\n')
+                if not content[-1]:         # strip extraneous empty string at end
+                    content = content[:-1]
 
             content = [c.rstrip('\r\n') for c in content] + ['']
             content = '\n'.join(content)
 
-            # Process $INCLUDE
-#             content = _process_includes(self.template_path, content, include_path)
+            # Preprocess the explicit $INCLUDES
+            content = self._preprocess_includes(content)
 
-            # Preprocess if necessary
+            # Apply any additional preprocessor
             if preprocess:
                 if not isinstance(preprocess, list):
                     preprocess = [preprocess]
@@ -146,65 +140,16 @@ class PdsTemplate:
                         else:
                             content = func(self.template_path, content)
 
-            # Convert to a list
             self.content = content
-            records = content.split('\n')
-
-            # Strip out comments
-            records = self._strip_comments(records)
 
             # Detect XML if not specified
             if xml is None:
-                self.xml = self._detect_xml(records)
+                self.xml = self._detect_xml(content)
             else:
                 self.xml = xml
 
-            # We need to save the line number in which each expression appears so that
-            # error messages can be informative. To handle this, we temporarily write the
-            # line number followed by a colon after each "$" found in the template.
-
-            # Insert line numbers after each "$"
-            numbered = [rec.rstrip().replace('$', f'${k+1}:')
-                        for k, rec in enumerate(records)]
-
-            # Merge back into a single string
-            content = '\n'.join(numbered)
-
-            # Split based on headers. The entire template is split into substrings...
-            # 0: text before the first header, if any
-            # 1: line number of the header
-            # 2: header word ("IF", "FOR", etc.)
-            # 3: text between parentheses in the header line
-            # 4: template text from here to the next header line
-            # 5: line number of the next header
-            # etc.
-            parts = PdsTemplate._HEADER_PATTERN.split(content)
-
-            # parts[0] is '' if the file begins with a header, or else it is the body text
-            # before the first header. The first header is always described by parts[1:4];
-            # every part indexed 4*N + 1 is a line number.
-
-            # Create a list of (header, arg, line, body) tuples, skipping parts[0]
-            sections = [_Section('$'+h, a, int(l), b) for (l, h, a, b)
-                        in zip(parts[1::4], parts[2::4], parts[3::4], parts[4::4])]
-
-            # Convert to deque and prepend the leading body text if necessary
-            sections = deque(sections)
-            if parts[0]:
-                sections.appendleft(_Section('$ONCE', '', 0, parts[0]))
-
-            # Convert the sections into a list of execution blocks
-            # Each call to _PdsBlock.new_block pops one or more items off top of the
-            # deque; the loop repeats until no sections are left.
-            self.blocks = deque()
-            while sections:
-                # Each call to _PdsBlock.new_block takes as many sections off the deque as
-                # it needs to in order to be syntactically complete. For example, if the
-                # the section at the top is "IF", it will remove the subsequent "ELSE_IF"
-                # and "ELSE" sections from the deque. It will return when it encounters
-                # the associated "END_IF". Calls are recursive, so this handles nesting
-                # correctly.
-                self.blocks.append(_PdsBlock.new_block(sections, self))
+            # Compile into a deque of _PdsBlock objects
+            self._blocks = _PdsBlock.process_headers(content, self)
 
         except Exception as err:
             logger.exception(err, self.template_path)
@@ -214,35 +159,45 @@ class PdsTemplate:
         self._error_count = 0
         self._warning_count = 0
 
+    def _include_dirs(self):
+        """Ordered list of all include directories to search."""
+
+        return [self.template_path.parent] + self._includes + getenv_include_dirs()
+
+    _INCLUDE_REGEX = re.compile(r'(?<![^\n]) *\$INCLUDE\( *(\'[^\']+\'|"[^"]+") *\) *\n')
+
+    def _preprocess_includes(self, content):
+        """Pre-process the template content for $INCLUDE directives with explicit paths.
+
+        Paths containing expressions of any sort are left alone.
+        """
+
+        # Split based on $INCLUDE headers. The entire template is split into substrings:
+        # - Even indices contain text between the $INCLUDES
+        # - Odd indices contain the file name surrounded by quotes
+        parts = PdsTemplate._INCLUDE_REGEX.split(content)
+        for k, part in enumerate(parts):
+            if k%2 == 1:
+                part = _PdsIncludeBlock.get_content(part[1:-1], self._include_dirs())
+                part = self._preprocess_includes(part)      # process recursively
+                parts[k] = part
+
+        return ''.join(parts)
+
     @staticmethod
-    def _detect_xml(lines):
+    def _detect_xml(content):
         """Determine whether the given content is xml."""
 
-        if lines[0].find('<?xml') != -1:
+        first_line = content.partition('\n')[0]
+
+        if '<?xml' in first_line:
             return True
 
-        if (len(lines[0].split('<')) == len(lines[0].split('>')) and
-                len(lines[0].split('<')) > 1):
+        count = len(first_line.split('<'))
+        if count > 1 and count == len(first_line.split('>')):
             return True
 
         return False
-
-    @staticmethod
-    def _strip_comments(lines):
-        """Strip inline comments from the given lines of text."""
-
-        comment = '$NOTE:'
-        newlines = []
-        for line in lines:
-            if line == '':
-                newlines.append(line)
-            else:
-                content = line.partition(comment)
-                if content[0] == '':
-                    continue
-                newlines.append(content[0].rstrip())
-
-        return newlines
 
     def generate(self, dictionary, label_path='', *, raise_exceptions=False):
         """Generate the content of one label based on the template and dictionary.
@@ -281,7 +236,7 @@ class PdsTemplate:
         logger = get_logger()
         logger.open('Generating ' + (str(label_path) if label_path else 'label'))
         try:
-            for block in self.blocks:
+            for block in self._blocks:
                 results += block.execute(state)
         finally:
             (fatal, errors, warns, total) = logger.close(force='warn')
@@ -738,6 +693,20 @@ class PdsTemplate:
         return utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     @staticmethod
+    def GETENV(name, default=''):
+        """The value of the specified environment variable.
+
+        Parameters:
+            name (str): Name of the environment variable.
+            default (str): Value to return if the environment variable is undefined.
+
+        Returns:
+            str: The value of the variable or else the default.
+        """
+
+        return os.getenv(name, default=default)
+
+    @staticmethod
     def LABEL_PATH():
         """The path to the current label file being generated.
 
@@ -924,6 +893,7 @@ PdsTemplate._PREDEFINED_FUNCTIONS['FILE_MD5'     ] = PdsTemplate.FILE_MD5
 PdsTemplate._PREDEFINED_FUNCTIONS['FILE_RECORDS' ] = PdsTemplate.FILE_RECORDS
 PdsTemplate._PREDEFINED_FUNCTIONS['FILE_TIME'    ] = PdsTemplate.FILE_TIME
 PdsTemplate._PREDEFINED_FUNCTIONS['FILE_ZULU'    ] = PdsTemplate.FILE_ZULU
+PdsTemplate._PREDEFINED_FUNCTIONS['GETENV'       ] = PdsTemplate.GETENV
 PdsTemplate._PREDEFINED_FUNCTIONS['LABEL_PATH'   ] = PdsTemplate.LABEL_PATH
 PdsTemplate._PREDEFINED_FUNCTIONS['LOG'          ] = PdsTemplate.LOG
 PdsTemplate._PREDEFINED_FUNCTIONS['NOESCAPE'     ] = PdsTemplate.NOESCAPE

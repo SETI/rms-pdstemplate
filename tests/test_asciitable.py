@@ -8,7 +8,7 @@ import unittest
 
 from pdstemplate import PdsTemplate, TemplateError
 from pdstemplate.asciitable import AsciiTable, ANALYZE_TABLE, TABLE_VALUE
-from pdstemplate.asciitable import _latest_ascii_table
+from pdstemplate.asciitable import _latest_ascii_table, _reset_ascii_table
 
 
 class Test_AsciiTable(unittest.TestCase):
@@ -272,3 +272,5 @@ class Test_AsciiTable(unittest.TestCase):
         # Reset to starting point
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_TABLE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
+        _reset_ascii_table()
+

@@ -528,6 +528,12 @@ def _latest_ascii_table():
     return AsciiTable._LATEST_ASCII_TABLE
 
 
+def _reset_ascii_table():
+    """Reset the most recently defined AsciiTable object to None, for debugging."""
+
+    AsciiTable._LATEST_ASCII_TABLE = None
+
+
 PdsTemplate.define_global('ANALYZE_TABLE', ANALYZE_TABLE)
 
 ##########################################################################################

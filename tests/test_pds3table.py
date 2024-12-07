@@ -13,7 +13,7 @@ import tempfile
 import time
 import unittest
 
-from pdstemplate import PdsTemplate, get_logger
+from pdstemplate import PdsTemplate, get_logger, TemplateError
 from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
                                   LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
 from pdstemplate.pds3table import pds3_table_preprocessor
@@ -28,6 +28,9 @@ class Test_Pds3Table(unittest.TestCase):
         test_file_dir = root_dir / 'test_files'
         path = test_file_dir / 'COVIMS_0094_index.lbl'
         label = Pds3Table(path)
+
+        self.assertRaisesRegex(TemplateError, r'No ASCII table has been.*',
+                               label.assign_to)
 
         self.assertEqual(OLD_LABEL_VALUE('RECORD_TYPE'), 'FIXED_LENGTH')
         self.assertEqual(OLD_LABEL_VALUE('RECORD_BYTES'), 1089)
@@ -179,6 +182,44 @@ class Test_Pds3Table(unittest.TestCase):
 
         finally:
             shutil.rmtree(dirpath)
+
+        # Test of sky_summary template
+        kwargs = {'validate': False, 'numbers': True, 'formats': True}
+        sky_summary = PdsTemplate(test_file_dir / 'sky_summary_template.txt',
+                                  preprocess=pds3_table_preprocessor, kwargs=kwargs,
+                                  crlf=True)
+
+        from pdstemplate.asciitable import TABLE_VALUE, _latest_ascii_table
+        self.maxDiff = None
+        with open(test_file_dir/'sky_summary_template_preprocessed.txt', 'r') as f:
+            answer = f.read()
+        self.assertEqual(sky_summary.content, answer)
+
+        label = sky_summary.generate({}, test_file_dir / 'GO_0023_sky_summary.lbl')
+        with open(test_file_dir/'GO_0023_sky_summary.lbl', 'rb') as f:
+            answer = f.read()
+        answer = answer.decode('utf-8')
+
+        self.assertEqual(label, answer)
+
+        # Missing TABLE
+        template_path = test_file_dir / 'sky_summary_template.txt'
+        with template_path.open('rb') as f:
+            content = f.read()
+        content = content.decode('utf-8')
+        content = content.replace('TABLE', 'IMAGE')
+        self.assertRaisesRegex(TemplateError, r'Template does not contain.*',
+                               PdsTemplate, template_path, content,
+                               preprocess=pds3_table_preprocessor)
+
+        # Two tables
+        with template_path.open('rb') as f:
+            content = f.read()
+        content = content.decode('utf-8')
+        content = content + content
+        self.assertRaisesRegex(TemplateError, r'Template contains multiple.*',
+                               PdsTemplate, template_path, content,
+                               preprocess=pds3_table_preprocessor)
 
         # Reset to starting point
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_PDS3_LABEL']

@@ -2,6 +2,8 @@
 # pdstemplate/_utils.py
 ##########################################################################################
 
+import os
+import pathlib
 from collections import namedtuple
 
 from pdslogger import PdsLogger, LoggerError
@@ -10,21 +12,25 @@ from pdslogger import PdsLogger, LoggerError
 class TemplateError(LoggerError):
     pass
 
-# namedtuple class definition
-#
-# This is used to describe any subset of lines in the template containing one header and
-# any label text up to the next header:
-#   header      the header type, e.g., "$FOR" or "$IF" or $END_IF";
-#   arg         any expression following the header, inside parentheses;
-#   line        the line number of the template in which the header appears;
-#   body        the text immediately following this header and up until the next header.
-#
-# When the template file is first read, it is described by a deque of _Section objects. If
-# there is no header before the first line of the template, it is assigned a header type
-# of "$ONCE().
-_Section = namedtuple('_Section', ['header', 'arg', 'line', 'body'])
-
 _NOESCAPE_FLAG = '!!NOESCAPE!!:'    # used internally
+
+##########################################################################################
+# $INCLUDE directory management
+##########################################################################################
+
+_INCLUDE_DIRS = None
+
+def getenv_include_dirs():
+    """The list of directories to search for $INCLUDE files."""
+
+    global _INCLUDE_DIRS
+
+    if _INCLUDE_DIRS is None:
+        value = os.getenv('PDSTEMPLATE_INCLUDES')
+        dirs = value.split(':') if value else []
+        _INCLUDE_DIRS = [pathlib.Path(d) for d in dirs]
+
+    return _INCLUDE_DIRS
 
 ##########################################################################################
 # Logger management

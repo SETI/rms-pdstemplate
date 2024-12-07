@@ -1,0 +1,2 @@
+MINIMUM_WAVELENGTH      = 0.3       /* Visual wavelengths */
+MAXIMUM_WAVELENGTH      = 0.7

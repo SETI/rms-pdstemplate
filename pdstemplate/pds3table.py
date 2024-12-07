@@ -23,9 +23,11 @@ class Pds3Table():
     """
 
     # These split a content string into its constituent objects
-    _OBJECT_TABLE_REGEX = re.compile(r'( *OBJECT *= *\w*TABLE *\r?\n)(.*?\r?\n)'
-                                     r'( *END_OBJECT *= *\w*TABLE *\r?\n)', re.DOTALL)
-    _OBJECT_COLUMN_REGEX = re.compile(r'( *OBJECT *= *COLUMN *\r?\n)(.*?\r?\n)'
+    _OBJECT_TABLE_REGEX = re.compile(r'(?<![ \w])'
+                                     r'( *OBJECT *= *[^\n]*TABLE *\r?\n)(.*?\r?\n)'
+                                     r'( *END_OBJECT *= *[^\n]*TABLE *\r?\n)', re.DOTALL)
+    _OBJECT_COLUMN_REGEX = re.compile(r'(?<![ \w])'
+                                      r'( *OBJECT *= *COLUMN *\r?\n)(.*?\r?\n)'
                                       r'( *END_OBJECT *= *COLUMN *\r?\n)', re.DOTALL)
 
     # For global access to the latest table
@@ -69,8 +71,7 @@ class Pds3Table():
                 these values for all floating-point columns.
             edits (list[str]), optional):
                 A list of strings of the form "column:name = value", which should be used
-                to insert or replace values currently in the label. derived FORMAT and
-                DATA_TYPE values.
+                to insert or replace values currently in the label.
         """
 
         self.labelpath = pathlib.Path(labelpath)
@@ -130,10 +131,10 @@ class Pds3Table():
         # parts[4] = remainder of label
         parts = Pds3Table._OBJECT_TABLE_REGEX.split(label)
         if len(parts) == 1:
-            raise TemplateError('template does not contain a PDS3 TABLE object',
+            raise TemplateError('Template does not contain a PDS3 TABLE object',
                                 self.labelpath)
         if len(parts) > 5:
-            raise TemplateError('template contains multiple PDS3 TABLE objects',
+            raise TemplateError('Template contains multiple PDS3 TABLE objects',
                                 self.labelpath)
 
         # Process the table interior
@@ -161,17 +162,15 @@ class Pds3Table():
             header += ['$ONCE(VALIDATE_PDS3_LABEL())', self.terminator]
 
         self.content = ''.join(header) + ''.join(parts)
+        self.table = None
 
         # Set globals for access within the template object
         Pds3Table._LATEST_PDS3_TABLE = self
         PdsTemplate.define_global('VALIDATE_PDS3_LABEL', VALIDATE_PDS3_LABEL)
-        PdsTemplate.define_global('LABEL_VALUE', self.lookup)
-        PdsTemplate.define_global('OLD_LABEL_VALUE', self.old_lookup)
-
-        self.table = _latest_ascii_table()
-        if self.table:
-            PdsTemplate.define_global('ANALYZE_TABLE', ANALYZE_TABLE)
-            PdsTemplate.define_global('TABLE_VALUE', TABLE_VALUE)
+        PdsTemplate.define_global('LABEL_VALUE', LABEL_VALUE)
+        PdsTemplate.define_global('OLD_LABEL_VALUE', OLD_LABEL_VALUE)
+        PdsTemplate.define_global('ANALYZE_TABLE', ANALYZE_TABLE)
+        PdsTemplate.define_global('TABLE_VALUE', TABLE_VALUE)
 
     def _process_table_interior(self, label):
 
@@ -329,18 +328,21 @@ class Pds3Table():
     # assign_to()
     ######################################################################################
 
-    def assign_to(self, table):
+    def assign_to(self, table=None):
         """Assign this PDS3 label to the given ASCII table.
 
         Parameters:
-            table (AsciiTable): Table to which this PDS3 label should apply.
+            table (AsciiTable, optional): Table to which this PDS3 label should apply. If
+                not specified, the table defined by AsciiTable._latest_ascii_table() is
+                used.
         """
 
-        if not table and not self.table:
-            raise TemplateError('no ASCII table has been analyzed for label',
+        table = table or _latest_ascii_table()
+        if not table:
+            raise TemplateError('No ASCII table has been analyzed for label',
                                 self.labelpath)
 
-        if table and table is not self.table:
+        if table is not self.table:
             self.table = table
             self._unique_values_ = [None for _ in self._column_values] + [None]
             self._unique_valids_ = [None for _ in self._column_values] + [None]
@@ -397,6 +399,9 @@ class Pds3Table():
             int: The number of warning messages issued.
         """
 
+        if table:
+            self.assign_to(table)
+
         messages = self._validation_warnings(table)
         for message in messages:
             warnings.warn(message)
@@ -431,16 +436,14 @@ class Pds3Table():
         warnings, one for each erroneous value identified.
 
         Parameters:
-            table (AsciiTable, optional): The AsciiTable assigned to this label. If this
-                is specified and is different from the currently assigned table, it
-                becomes the assigned table.
+            table (AsciiTable, optional): The AsciiTable to assign to this label before
+                validation. If not specified, the latest analyzed ASCII table is used.
 
         Returns:
             list[str]: A list of warning messages.
         """
 
-        if table and table is not self.table:
-            self.assign_to(table)
+        self.assign_to(table)
         table = self.table
         if not table:
             raise TemplateError('No ASCII table has been analyzed for label',
@@ -622,65 +625,62 @@ class Pds3Table():
                     return self.get_table_basename()
 
         if not self.table:
-            self.assign_to(_latest_ascii_table())
+            self.assign_to()
 
-        if self.table:
-            match name:
-                case 'TABLE_PATH':
-                    return self.table.lookup('PATH')
-                case 'TABLE_BASENAME':
-                    return self.table.lookup('BASENAME')
-                case 'RECORD_BYTES' | 'ROW_BYTES':
-                    return self.table.lookup('ROW_BYTES')
-                case 'FILE_RECORDS' | 'ROWS':
-                    return self.table.lookup('ROWS')
-                case 'COLUMNS':
-                    return self.table.lookup('COLUMNS') - self._extra_items
-                case 'DATA_TYPE':
-                    # Override derived DATA_TYPE if every value in the table is invalid
-                    old_value = self._column_values[colnum]['DATA_TYPE']
-                    if old_value is not None and len(self._unique_valids(colnum)) == 0:
-                        return old_value
-                    return self.table.lookup('PDS3_DATA_TYPE', indx)
-                case 'START_BYTE':
-                    return (self.table.lookup('START_BYTE', indx)
-                            + self.table.lookup('QUOTES', indx))
-                case 'ITEM_BYTES':
+        match name:
+            case 'TABLE_PATH':
+                return self.table.lookup('PATH')
+            case 'TABLE_BASENAME':
+                return self.table.lookup('BASENAME')
+            case 'RECORD_BYTES' | 'ROW_BYTES':
+                return self.table.lookup('ROW_BYTES')
+            case 'FILE_RECORDS' | 'ROWS':
+                return self.table.lookup('ROWS')
+            case 'COLUMNS':
+                return self.table.lookup('COLUMNS') - self._extra_items
+            case 'DATA_TYPE':
+                # Override derived DATA_TYPE if every value in the table is invalid
+                old_value = self._column_values[colnum]['DATA_TYPE']
+                if old_value is not None and len(self._unique_valids(colnum)) == 0:
+                    return old_value
+                return self.table.lookup('PDS3_DATA_TYPE', indx)
+            case 'START_BYTE':
+                return (self.table.lookup('START_BYTE', indx)
+                        + self.table.lookup('QUOTES', indx))
+            case 'ITEM_BYTES':
+                return self.table.lookup('BYTES', indx)
+            case 'ITEM_OFFSET':
+                return self.table.lookup('WIDTH', indx) + 1
+            case 'BYTES':
+                items = self._column_items[colnum]
+                if items == 1:
                     return self.table.lookup('BYTES', indx)
-                case 'ITEM_OFFSET':
-                    return self.table.lookup('WIDTH', indx) + 1
-                case 'BYTES':
-                    items = self._column_items[colnum]
-                    if items == 1:
-                        return self.table.lookup('BYTES', indx)
-                    else:
-                        item_bytes = self.table.lookup('BYTES', indx)
-                        item_offset = (self.table.lookup('START_BYTE', indx+1)
-                                       - self.table.lookup('START_BYTE', indx))
-                        return (items-1) * item_offset + item_bytes
-                case 'FORMAT':
-                    # Override the derived FORMAT if every value in the table is invalid
-                    old_value = self._column_values[colnum]['FORMAT']
-                    if old_value is not None and len(self._unique_valids(colnum)) == 0:
-                        return old_value
-                    return self.table.lookup('PDS3_FORMAT', indx)
-                case ('MINIMUM_VALUE' | 'MAXIMUM_VALUE' | 'DERIVED_MINIMUM' |
-                      'DERIVED_MAXIMUM'):
-                    unique = self._unique_valids(colnum) or self._unique_values(colnum)
-                    new_value = min(unique) if 'MINIMUM' in name else max(unique)
-                    if 'DERIVED' not in name or self._is_a_constant(colnum, new_value):
-                        return new_value
-                    scaling = self._column_values[colnum].get('SCALING_FACTOR', 1) or 1
-                    offset = self._column_values[colnum].get('OFFSET', 0) or 0
-                    if (scaling, offset) != (1, 0):     # can't multiply string values!
-                        new_value = new_value * scaling + offset
+                else:
+                    item_bytes = self.table.lookup('BYTES', indx)
+                    item_offset = (self.table.lookup('START_BYTE', indx+1)
+                                   - self.table.lookup('START_BYTE', indx))
+                    return (items-1) * item_offset + item_bytes
+            case 'FORMAT':
+                # Override the derived FORMAT if every value in the table is invalid
+                old_value = self._column_values[colnum]['FORMAT']
+                if old_value is not None and len(self._unique_valids(colnum)) == 0:
+                    return old_value
+                return self.table.lookup('PDS3_FORMAT', indx)
+            case ('MINIMUM_VALUE' | 'MAXIMUM_VALUE' | 'DERIVED_MINIMUM' |
+                  'DERIVED_MAXIMUM'):
+                unique = self._unique_valids(colnum) or self._unique_values(colnum)
+                new_value = min(unique) if 'MINIMUM' in name else max(unique)
+                if 'DERIVED' not in name or self._is_a_constant(colnum, new_value):
                     return new_value
-                case 'FIRST' | 'LAST':
-                    return Pds3Table._eval(self.table.lookup(name, indx))
-                case _:
-                    return self.old_lookup(name, colnum)
-
-        raise TemplateError('no ASCII table has been analyzed')
+                scaling = self._column_values[colnum].get('SCALING_FACTOR', 1) or 1
+                offset = self._column_values[colnum].get('OFFSET', 0) or 0
+                if (scaling, offset) != (1, 0):     # can't multiply string values!
+                    new_value = new_value * scaling + offset
+                return new_value
+            case 'FIRST' | 'LAST':
+                return Pds3Table._eval(self.table.lookup(name, indx))
+            case _:
+                return self.old_lookup(name, colnum)
 
     def _unique_values(self, colnum):
         """The set of unique values in the specified column number.
@@ -1099,7 +1099,10 @@ def LABEL_VALUE(name, column=0):
     """
 
     if not Pds3Table._LATEST_PDS3_TABLE:
-        raise TemplateError('no PDS3 label has been analyzed')
+        raise TemplateError('No PDS3 label has been analyzed')
+
+    if _latest_ascii_table():       # make sure we're referring to the latest AsciiTable
+        Pds3Table._LATEST_PDS3_TABLE.assign_to()
 
     return Pds3Table._LATEST_PDS3_TABLE.lookup(name, column)
 

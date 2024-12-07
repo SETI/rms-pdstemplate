@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 import pdslogger
-from pdstemplate import PdsTemplate, TemplateError
+from pdstemplate import PdsTemplate, TemplateError, _utils
 
 PdsTemplate.set_log_level(pdslogger.FATAL + 1)  # suppress logging to stdout
 
@@ -265,6 +265,13 @@ class Test_Predefined(unittest.TestCase):
             os.close(fd)
             os.remove(filepath)
 
+        # GETENV
+        T = PdsTemplate('t.xml', content='<env>$GETENV("HOME")$</env>')
+        self.assertNotEqual(T.generate({}), '<env>None</env>\n')
+
+        T = PdsTemplate('t.xml', content='<env>$GETENV("abcdefghijk", "Missing!")$</env>')
+        self.assertEqual(T.generate({}), '<env>Missing!</env>\n')
+
         # LABEL_PATH
         T = PdsTemplate('t.xml', content='<path>$LABEL_PATH()$</path>\n')
         label_path = 'path/to/label.xml'
@@ -287,7 +294,7 @@ class Test_Predefined(unittest.TestCase):
 
         # RAISE
         T = PdsTemplate('t.xml', content='$RAISE(ValueError,"This is the ValueError")$\n')
-        V = '[[[ValueError(This is the ValueError) at line 1]]]\n'
+        V = '[[[ValueError(This is the ValueError) at t.xml:1]]]\n'
         self.assertEqual(T.generate({}), V)
         self.assertEqual(T._error_count, 1)
 
@@ -451,7 +458,7 @@ class Test_Headers(unittest.TestCase):
                 $END_FOR
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         '$END_FOR without matching $FOR at line 2')
+                         '$END_FOR without matching $FOR at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
@@ -459,14 +466,14 @@ class Test_Headers(unittest.TestCase):
                 $END_FOR
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'missing argument for $FOR at line 2')
+                         'Missing argument for $FOR at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
                 $FOR(5)
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'unterminated $FOR block starting at line 2')
+                         'Unterminated $FOR block starting at t.xml:2')
 
         # $IF, $ELSE_IF, $ELSE, $END_IF
         T = PdsTemplate('t.xml', content="""\
@@ -505,7 +512,7 @@ class Test_Headers(unittest.TestCase):
                 $END_IF
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         '$END_IF without matching $IF at line 2')
+                         '$END_IF without matching $IF at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
@@ -513,14 +520,14 @@ class Test_Headers(unittest.TestCase):
                 $END_IF
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'missing argument for $IF at line 2')
+                         'Missing argument for $IF at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
                 $IF(5)
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'unterminated $IF block starting at line 2')
+                         'Unterminated $IF block starting at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
@@ -528,7 +535,7 @@ class Test_Headers(unittest.TestCase):
                 $ELSE
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'unterminated $ELSE block starting at line 3')
+                         'Unterminated $ELSE block starting at t.xml:3')
 
         # $ONCE
         T = PdsTemplate('t.xml', content="""<a></a>
@@ -562,14 +569,14 @@ class Test_Headers(unittest.TestCase):
 #         with self.assertRaises(TemplateError) as context:
 #             T = PdsTemplate('t.xml', content='$ONCE(5)\n')
 #         self.assertEqual(str(context.exception),
-#                          '$ONCE expression does not define a variable at line 1')
+#                          '$ONCE expression does not define a variable at t.xml:1')
 
         T = PdsTemplate('t.xml', content='$ONCE(a=5/0)\n')
-        V = """[[[ZeroDivisionError(division by zero) at line 1]]]"""
+        V = """[[[ZeroDivisionError(division by zero) at t.xml:1]]]"""
         with self.assertRaises(ZeroDivisionError) as context:
             T.generate({}, raise_exceptions=True)
         self.assertEqual(str(context.exception),
-                         'ZeroDivisionError(division by zero) at line 1')
+                         'ZeroDivisionError(division by zero) at t.xml:1')
         self.assertEqual(T.generate({}), V)
 
         # $NOTE and $END_NOTE
@@ -587,21 +594,21 @@ class Test_Headers(unittest.TestCase):
                 $END_NOTE
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         '$END_NOTE without matching $NOTE at line 2')
+                         '$END_NOTE without matching $NOTE at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
                 $NOTE(a=5)
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'extraneous argument for $NOTE at line 2')
+                         'Extraneous argument for $NOTE at t.xml:2')
 
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content="""<a></a>
                 $NOTE
                 <b></b>\n""")
         self.assertEqual(str(context.exception),
-                         'unterminated $NOTE block starting at line 2')
+                         'Unterminated $NOTE block starting at t.xml:2')
 
         # Nesting...
 
@@ -750,7 +757,7 @@ class Test_Misc(unittest.TestCase):
         # Raised exceptions
         T = PdsTemplate('t.xml', content='$1/0$\n', xml=False)
         D = {}
-        V = '[[[ZeroDivisionError(division by zero) at line 1]]]\n'
+        V = '[[[ZeroDivisionError(division by zero) at t.xml:1]]]\n'
         self.assertEqual(T.generate(D), V)
         self.assertEqual(T.generate(D, raise_exceptions=False), V)
 
@@ -762,7 +769,7 @@ class Test_Misc(unittest.TestCase):
                 SOMETHING
             $END_IF\n""")
         D = {}
-        V = '\n[[[ZeroDivisionError(division by zero) at line 2]]]'
+        V = '\n[[[ZeroDivisionError(division by zero) at t.xml:2]]]'
         self.assertEqual(T.generate(D), V)
 
         with self.assertRaises(ZeroDivisionError):
@@ -773,7 +780,7 @@ class Test_Misc(unittest.TestCase):
                 SOMETHING
             $END_FOR\n""")
         D = {}
-        V = '\n[[[ZeroDivisionError(division by zero) at line 2]]]'
+        V = '\n[[[ZeroDivisionError(division by zero) at t.xml:2]]]'
         self.assertEqual(T.generate(D), V)
 
         with self.assertRaises(ZeroDivisionError):
@@ -782,7 +789,7 @@ class Test_Misc(unittest.TestCase):
         # Mismatched $
         with self.assertRaises(TemplateError) as context:
             T = PdsTemplate('t.xml', content='$\n')
-        self.assertEqual(str(context.exception), 'mismatched "$" at line 1')
+        self.assertEqual(str(context.exception), 'Mismatched "$" at t.xml:1')
 
         # Float pretty-printing
         T = PdsTemplate('t.xml', content='$0.1+0.2$\n', xml=False)
@@ -887,7 +894,8 @@ est laborum.
             with open(test_expected_file, 'w') as fp:
                 fp.write(result)
         else:
-            print(result)
+            with open('result.txt', 'w') as f: f.write(result)
+            with open('expected.txt', 'w') as f: f.write(expected)
             self.assertEqual(expected, result)
 
         # Test XML escaping
@@ -949,7 +957,8 @@ est laborum.
                 self.assertEqual(answer, (0, 0))
                 self.assertTrue(False, "This should have raised an exception but didn't")
             except ValueError as e:
-                self.assertEqual(str(e), 'ValueError(This is the ValueError) at line 1')
+                self.assertEqual(str(e), 'ValueError(This is the ValueError) at '
+                                         'raises_template.txt:1')
                 self.assertEqual(T._error_count, 1)
 
         # Test writing files with different terminators
@@ -1030,3 +1039,52 @@ class Test_Preprocessor(unittest.TestCase):
             return hello(filepath, content, name='rob')
         T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase, h2])
         self.assertEqual(T.generate({}), 'Hello Rob!\nTEXT\n')
+
+
+class Test_include_dirs(unittest.TestCase):
+
+    def runTest(self):
+
+        try:
+            _utils._INCLUDE_DIRS = None
+            original = os.getenv('PDSTEMPLATE_INCLUDES')
+            os.environ['PDSTEMPLATE_INCLUDES'] = '.:foo:bar'
+
+            T = PdsTemplate('prefix/t.xml', content='ignored\n', includes='whatever')
+            dirs = [str(d) for d in T._include_dirs()]
+            self.assertEqual(dirs, ['prefix', 'whatever', '.', 'foo', 'bar'])
+
+            T = PdsTemplate('prefix/t.xml', content='ignored\n', includes=['what', 'ever'])
+            dirs = [str(d) for d in T._include_dirs()]
+            self.assertEqual(dirs, ['prefix', 'what', 'ever', '.', 'foo', 'bar'])
+
+        finally:
+            _utils._INCLUDE_DIRS = None
+            if original is not None:
+                os.environ['PDSTEMPLATE_INCLUDES'] = original
+
+
+class Test_Includes(unittest.TestCase):
+
+    def runTest(self):
+
+        root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
+        test_file_dir = root_dir / 'test_files'
+
+        T = PdsTemplate(test_file_dir / 'include_test.lbl')
+        answer = (test_file_dir / 'include_test_content.txt').read_text()
+        self.assertEqual(T.content, answer)
+
+        label = T.generate({'isvis':True}, 'temp.lbl')
+        answer = (test_file_dir / 'include_test_label_vis.txt').read_bytes().decode('utf-8')
+        print(label)
+        self.assertEqual(label, answer)
+
+        label = T.generate({'isvis':False}, 'temp.lbl')
+        answer = (test_file_dir / 'include_test_label_ir.txt').read_bytes().decode('utf-8')
+        self.assertEqual(label, answer)
+
+
+
+
+

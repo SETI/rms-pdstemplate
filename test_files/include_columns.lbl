@@ -1,0 +1,12 @@
+$ONCE(x=123)
+OBJECT                  = COLUMN
+  NAME                    = FILE_NAME
+END_OBJECT              = COLUMN
+
+OBJECT                  = COLUMN
+  NAME                    = PATH_NAME
+END_OBJECT              = COLUMN
+
+VALUE_OF_X              = $x$
+$INCLUDE('include_redefine_x.lbl')
+VALUE_OF_X              = $x$

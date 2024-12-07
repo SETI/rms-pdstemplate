@@ -1,0 +1,25 @@
+PDS_VERSION_ID          = PDS3
+INSTRUMENT_ID           = "VIMS"
+MINIMUM_WAVELENGTH      = 0.7       /* IR wavelengths */
+MAXIMUM_WAVELENGTH      = 5.1
+
+OBJECT                  = INDEX_TABLE
+  INDEX_TYPE              = SINGLE
+
+  DESCRIPTION             = "This version of the Cassini VIMS image index has
+...where the lower left corner does not intercept the target body."
+
+OBJECT                  = COLUMN
+  NAME                    = FILE_NAME
+END_OBJECT              = COLUMN
+
+OBJECT                  = COLUMN
+  NAME                    = PATH_NAME
+END_OBJECT              = COLUMN
+
+VALUE_OF_X              = 123
+VALUE_OF_X              = 234
+VALUE_OF_X              = 234
+
+END_OBJECT              = INDEX_TABLE
+END

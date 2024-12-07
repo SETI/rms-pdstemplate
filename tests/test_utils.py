@@ -2,10 +2,12 @@
 # tests/test_utils.py
 ##########################################################################################
 
+import os
 import unittest
 
 from pdstemplate import TemplateError
 from pdstemplate._utils import _check_terminators
+from pdstemplate import _utils
 
 
 class Test_Utils(unittest.TestCase):
@@ -65,3 +67,23 @@ class Test_Utils(unittest.TestCase):
             for crlf in (False, True, None):
                 self.assertRaises(TemplateError, _check_terminators, 'foo.txt', text,
                                   crlf=crlf)
+
+    def test_include_dirs(self):
+
+        try:
+            _utils._INCLUDE_DIRS = None
+            original = os.getenv('PDSTEMPLATE_INCLUDES')
+            os.environ['PDSTEMPLATE_INCLUDES'] = '.:foo:bar'
+            self.assertIsNone(_utils._INCLUDE_DIRS)
+            dirs = [str(d) for d in _utils.getenv_include_dirs()]
+            self.assertEqual(dirs, ['.', 'foo', 'bar'])
+
+            _utils._INCLUDE_DIRS = None
+            del os.environ['PDSTEMPLATE_INCLUDES']
+            self.assertEqual(_utils.getenv_include_dirs(), [])
+
+        finally:
+            _utils._INCLUDE_DIRS = None
+            if original is not None:
+                os.environ['PDSTEMPLATE_INCLUDES'] = original
+
