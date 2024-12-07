@@ -177,7 +177,7 @@ class PdsTemplate:
         # - Odd indices contain the file name surrounded by quotes
         parts = PdsTemplate._INCLUDE_REGEX.split(content)
         for k, part in enumerate(parts):
-            if k%2 == 1:
+            if k % 2 == 1:
                 part = _PdsIncludeBlock.get_content(part[1:-1], self._include_dirs())
                 part = self._preprocess_includes(part)      # process recursively
                 parts[k] = part

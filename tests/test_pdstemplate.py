@@ -890,12 +890,11 @@ est laborum.
                 result = fp.read()
 
         if update_expected:
-            print(result)
+#             print(result)
             with open(test_expected_file, 'w') as fp:
                 fp.write(result)
         else:
-            with open('result.txt', 'w') as f: f.write(result)
-            with open('expected.txt', 'w') as f: f.write(expected)
+#             print(result)
             self.assertEqual(expected, result)
 
         # Test XML escaping
@@ -945,11 +944,11 @@ est laborum.
                 result = fp.read()
 
             if update_expected:
-                print(result)
+#                 print(result)
                 with open(test_expected_file, 'w') as fp:
                     fp.write(result)
             else:
-                print(result)
+#                 print(result)
                 self.assertEqual(expected, result)
 
             try:
@@ -1075,16 +1074,10 @@ class Test_Includes(unittest.TestCase):
         answer = (test_file_dir / 'include_test_content.txt').read_text()
         self.assertEqual(T.content, answer)
 
-        label = T.generate({'isvis':True}, 'temp.lbl')
+        label = T.generate({'isvis': True}, 'temp.lbl')
         answer = (test_file_dir / 'include_test_label_vis.txt').read_bytes().decode('utf-8')
-        print(label)
         self.assertEqual(label, answer)
 
-        label = T.generate({'isvis':False}, 'temp.lbl')
+        label = T.generate({'isvis': False}, 'temp.lbl')
         answer = (test_file_dir / 'include_test_label_ir.txt').read_bytes().decode('utf-8')
         self.assertEqual(label, answer)
-
-
-
-
-

@@ -4,7 +4,6 @@
 
 import os
 import pathlib
-from collections import namedtuple
 
 from pdslogger import PdsLogger, LoggerError
 

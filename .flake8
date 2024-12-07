@@ -19,6 +19,9 @@ per-file-ignores =
     # F401 Module imported but unused
     __init__.py: F401
 
+    # F401 Module imported but unused
+    pds3table.py: F401
+
     # E501 Line too long (82 > 79 characters)
     test_pdstemplate.py: E501
 
@@ -59,3 +62,4 @@ per-file-ignores =
 # E402 Module level import not at top of file
 # E501 Line too long (82 > 79 characters)
 # E741 Do not use variables named 'I', 'O', or 'l'
+# F401 module imported but unused

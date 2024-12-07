@@ -86,4 +86,3 @@ class Test_Utils(unittest.TestCase):
             _utils._INCLUDE_DIRS = None
             if original is not None:
                 os.environ['PDSTEMPLATE_INCLUDES'] = original
-
