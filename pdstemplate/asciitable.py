@@ -252,7 +252,7 @@ class AsciiTable():
         # Float
         if match := AsciiTable._EFLOAT.fullmatch(stripped):
             prec = len(match.group(1)) + len(match.group(2)) - 1
-            return (match.group(3).decode('latin-1'), 0, len(stripped), prec)
+            return (match.group(3).decode('latin-1').upper(), 0, len(stripped), prec)
         if match := AsciiTable._FFLOAT.fullmatch(stripped):
             prec = len(match.group(1))
             return ('F', 0, len(stripped), prec)

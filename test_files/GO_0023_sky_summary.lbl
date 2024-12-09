@@ -65,6 +65,7 @@ OBJECT                          = SKY_GEOMETRY_TABLE
     START_BYTE                  = 46
     BYTES                       = 10
     FORMAT                      = "F10.6"
+    UNIT                        = "DEGREES"
     VALID_MINIMUM               = 0.
     VALID_MAXIMUM               = 360.
     NULL_CONSTANT               = -999.

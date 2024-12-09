@@ -43,6 +43,7 @@ OBJECT                          = SKY_GEOMETRY_TABLE
 
   OBJECT                        = COLUMN
     NAME                        = MINIMUM_RIGHT_ASCENSION
+    UNIT                        = "DEGREES"
     VALID_MINIMUM               = 0.
     VALID_MAXIMUM               = 360.
     NULL_CONSTANT               = -999.
