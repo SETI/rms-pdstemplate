@@ -66,6 +66,7 @@ OBJECT                          = SKY_GEOMETRY_TABLE
     START_BYTE                  = $LABEL_VALUE("START_BYTE", 3)$
     BYTES                       = $LABEL_VALUE("BYTES", 3)$
     FORMAT                      = $LABEL_VALUE("FORMAT", 3)$
+    UNIT                        = "DEGREES"
     VALID_MINIMUM               = 0.
     VALID_MAXIMUM               = 360.
     NULL_CONSTANT               = -999.
