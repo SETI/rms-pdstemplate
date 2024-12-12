@@ -152,8 +152,8 @@ class PdsTemplate:
             # pre-processing. Inside _pdsblock.py, this flag tells the logger to print the
             # actual content of the line causing the error, for simpler diagnosis of the
             # problem. DISABLED for now.
-            # self.include_error_info = (content != before)
-            self.include_error_info = False
+            # self.include_more_error_info = (content != before)
+            self.include_more_error_info = False
 
             # Detect XML if not specified
             if xml is None:

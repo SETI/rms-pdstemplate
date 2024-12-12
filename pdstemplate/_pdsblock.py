@@ -171,7 +171,7 @@ class _PdsBlock(object):
                     raise type(err)(message) from err
                 except Exception as err2:
                     get_logger().exception(err2, state.label_path,
-                                           info=self.error_info(self.line))
+                                           more=self._more_error_info(self.line))
 
                 # Return the content of the error message
                 if isinstance(err, TemplateError):
@@ -261,18 +261,18 @@ class _PdsBlock(object):
 
         return results
 
-    def error_info(self, line):
+    def _more_error_info(self, line):
         """The error info text to include following an exception.
 
         Parameters:
             line (int): Line number in template content, starting from 1.
 
         Returns:
-            str: If template.include_error_info, this is the selected line of the
+            str: If template.include_more_error_info, this is the selected line of the
                 template's content; otherwise, an empty string.
         """
 
-        if not self.template.include_error_info:
+        if not self.template.include_more_error_info:
             return ''
 
         recs = self.template.content.split('\n')
@@ -821,7 +821,7 @@ class _PdsIncludeBlock(_PdsBlock):
                 raise type(err)(message) from err
             except Exception as err:
                 get_logger().exception(err, state.label_path,
-                                       info=self.error_info(self.line))
+                                       more=self._more_error_info(self.line))
             return deque(['$INCLUDE(', filename, ')\n'])  # put error text into the label
 
         # Compile and execute the included template
