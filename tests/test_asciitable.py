@@ -35,7 +35,8 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertEqual(TABLE_VALUE('TERMINATORS'), 2)
         self.assertEqual(TABLE_VALUE('WIDTH', 0), 27)
 
-        self.assertRaises(KeyError, TABLE_VALUE, 'ZZZ')
+        with self.assertRaisesRegex(TemplateError, r'.*KeyError.*'):
+            _ = TABLE_VALUE('ZZZ')
 
         k = 0
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', k), 'A25')

@@ -8,7 +8,8 @@ import re
 from collections import deque, namedtuple
 from xml.sax.saxutils import escape
 
-from ._utils import TemplateError, _LOGGER, _NOESCAPE_FLAG
+from ._utils import TemplateError, TemplateAbort, _RaisedException
+from ._utils import get_logger, _NOESCAPE_FLAG
 
 # namedtuple class definition
 #
@@ -85,16 +86,16 @@ class _PdsBlock(object):
     ELSE_HEADERS = {'$ELSE_IF', '$ELSE', '$END_IF'}
 
     def preprocess_body(self):
-        """Preprocess body text from the template by locating all of the embedded
-        Python expressions and returning a list of substrings, where odd-numbered entries
-        are the expressions to evaluate, along with the associated line number.
+        """Preprocess body text from the template by locating all of the embedded Python
+        expressions and returning a list of substrings, where odd-numbered entries are the
+        expressions to evaluate, along with the associated line number.
         """
 
         # Split at the "$"
         parts = self.body.split('$')
         if len(parts) % 2 != 1:
             line = parts[-1].partition(':')[0]
-            raise TemplateError(f'Mismatched "$" at {self.filepath.name}:{line}')
+            raise TemplateAbort(f'Mismatched "$" at {self.filepath.name}:{line}')
 
         # Because we inserted the line number after every "$", every part except the first
         # now begins with a number followed by ":". We need to make the first item
@@ -126,30 +127,81 @@ class _PdsBlock(object):
                     expression = part
                     name = ''
 
-                new_parts.append((expression, name, line))
+                new_parts.append((expression, name, int(line)))
 
         self.preprocessed = new_parts
 
     def evaluate_expression(self, expression, line, state):
-        """Evaluate a single expression using the given dictionaries as needed. Identify
+        """Evaluate a single expression using the state's dictionaries as needed. Identify
         the file name and line number if an error occurs.
+
+        Parameters:
+            expression (str): Expression to evaluate.
+            line (int): Line number in the template starting from 1.
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            str: The evaluated expression as a string.
         """
 
         if expression:
             try:
                 return eval(expression, state.global_dict, state.local_dicts[-1])
+
+            except TemplateAbort:
+                raise
+
+            except _RaisedException as err:
+                suffix = f' at {self.filepath.name}:{line}'
+                if state.raise_exceptions:
+                    raise (err.exception)(err.message + suffix) from err
+                get_logger().error(err.exception.__name__ + ' ' + err.message + suffix,
+                                   state.label_path)
+                return (f'[[[{err.exception.__name__}({err.message}){suffix}]]]')
+
             except Exception as err:
-                message = f'{type(err).__name__}({err}) at {self.filepath.name}:{line}'
-                raise type(err)(message) from err       # pass the exception forward
+                # Attach the expression, file name and line number to the error message
+                suffix = f' in {expression} at {self.filepath.name}:{line}'
+                message = str(err) + suffix
+                if state.raise_exceptions:
+                    raise type(err)(message) from err
+
+                # Log with original stacktrace
+                try:
+                    raise type(err)(message) from err
+                except Exception as err2:
+                    get_logger().exception(err2, state.label_path,
+                                           info=self.error_info(self.line))
+
+                # Return the content of the error message
+                if isinstance(err, TemplateError):
+                    return f'[[[{message}]]]'
+
+                return f'[[[{type(err).__name__}({err})' + suffix + ']]]'
 
         # An empty expression is just a "$" followed by another "$"
         else:
             return '$'      # "$$" maps to "$"
 
+    @staticmethod
+    def _is_error(value):
+        """True if the value is the text of an error message."""
+
+        if not isinstance(value, str):
+            return False
+
+        return value.startswith('[[[') and value.endswith(']]]')
+
     def execute_body(self, state):
-        """Generate the label text defined by this body, using the given dictionaries to
+        """Generate the label text defined by this body, using the state's dictionaries to
         fill in the blanks. The content is returned as a deque of strings, which are to be
         joined upon completion to create the label.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate.
         """
 
         results = deque()
@@ -162,21 +214,14 @@ class _PdsBlock(object):
             # Odd-numbered items are expressions
             else:
                 (expression, name, line) = item
-                try:
-                    value = self.evaluate_expression(expression, line, state)
-                except Exception as err:
-                    if state.raise_exceptions:
-                        raise
-                    _LOGGER.exception(err, state.label_path)
-                    # Include the error text inside the label
-                    value = f'[[[{err}]]]'
+                value = self.evaluate_expression(expression, line, state)
 
-                if name:
+                if name and not _PdsBlock._is_error(value):
                     state.local_dicts[-1][name] = value
 
                 # Format a float without unnecessary trailing zeros
                 if isinstance(value, float):
-                    value = _PdsBlock._pretty_truncate(value)
+                    value = _PdsBlock._pretty_truncate(value, state.template.upper_e)
                 else:
                     # Otherwise, just convert to string
                     value = str(value)
@@ -201,6 +246,12 @@ class _PdsBlock(object):
         body plus any sub-blocks exactly once. It is overridden for $FOR and $IF blocks.
         The execute methods write all of their error messages to the logger rather than
         raising exceptions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate.
         """
 
         results = self.execute_body(state)
@@ -209,6 +260,23 @@ class _PdsBlock(object):
             results += block.execute(state)
 
         return results
+
+    def error_info(self, line):
+        """The error info text to include following an exception.
+
+        Parameters:
+            line (int): Line number in template content, starting from 1.
+
+        Returns:
+            str: If template.include_error_info, this is the selected line of the
+                template's content; otherwise, an empty string.
+        """
+
+        if not self.template.include_error_info:
+            return ''
+
+        recs = self.template.content.split('\n')
+        return f'    {line}: ' + recs[line-1]
 
     ######################################################################################
     # "Compiler" from a list of template records into a deque of _PdsBlock objects
@@ -311,16 +379,16 @@ class _PdsBlock(object):
             return _PdsIncludeBlock(sections, template, filepath=filepath)
 
         if header == '$END_FOR':
-            raise TemplateError(f'$END_FOR without matching $FOR at '
+            raise TemplateAbort(f'$END_FOR without matching $FOR at '
                                 f'{filepath.name}:{line}')
         if header == '$END_NOTE':
-            raise TemplateError(f'$END_NOTE without matching $NOTE at '
+            raise TemplateAbort(f'$END_NOTE without matching $NOTE at '
                                 f'{filepath.name}:{line}')
         if header in _PdsBlock.ELSE_HEADERS:    # pragma: no coverage - can't get here
-            raise TemplateError(f'{header} without matching $IF at '
+            raise TemplateAbort(f'{header} without matching $IF at '
                                 f'{filepath.name}:{line}')
 
-        raise TemplateError(f'Unrecognized header {header}({arg}) at '
+        raise TemplateAbort(f'Unrecognized header {header}({arg}) at '
                             f'{filepath.name}:{line}')  # pragma: no coverage
 
     @staticmethod
@@ -349,7 +417,7 @@ class _PdsBlock(object):
     _ZEROS = re.compile(r'(.*[.1-9])0{10,99}[1-9]\d*')
     _NINES = re.compile(r'(.*\.\d+9{10,99})[0-8]\d*')
 
-    def _pretty_truncate(value):
+    def _pretty_truncate(value, upper_e):
         """Convert a floating-point number to a string, while suppressing any extraneous
         trailing digits by rounding to the nearest value that does not have them.
 
@@ -360,8 +428,14 @@ class _PdsBlock(object):
         str_value = str(value)
 
         (mantissa, e, exponent) = str_value.partition('e')
+        if upper_e:
+            e = e.upper()
+
         if mantissa.endswith('.0'):
             return mantissa[:-1] + e + exponent
+
+        if '.' not in mantissa:         # always a decimal point in the mantissa
+            return mantissa + '.' + e + exponent
 
         # Handle trailing zeros
         match = _PdsBlock._ZEROS.fullmatch(mantissa)
@@ -430,7 +504,7 @@ class _PdsOnceBlock(_PdsBlock):
         if header.startswith('$ONCE-') and arg:  # pragma: no coverage
             # This can't happen in the current code because IF, FOR, and NOTE all
             # ignore the arg that's present in the template and pass in '' instead
-            raise TemplateError(f'Extraneous argument for {self.header} at '
+            raise TemplateAbort(f'Extraneous argument for {self.header} at '
                                 f'{self.filepath.name}:{line}')
 
     def execute(self, state):
@@ -447,18 +521,13 @@ class _PdsOnceBlock(_PdsBlock):
 
         # Define the local variable if necessary
         if self.arg:
-            try:
-                value = self.evaluate_expression(self.arg, self.line, state)
-            except Exception as err:
-                if state.raise_exceptions:
-                    raise
-                _LOGGER.exception(err, state.label_path)
-                # Include the error text inside the label
-                results.append(f'[[[{err}]]]')
-            else:
-                # Write new values into the local dictionary, not a copy
-                if self.name:
-                    state.local_dicts[-1][self.name] = value
+            value = self.evaluate_expression(self.arg, self.line, state)
+            if _PdsBlock._is_error(value):
+                return deque([value])
+
+            # Write new values into the local dictionary, not a copy
+            if self.name:
+                state.local_dicts[-1][self.name] = value
 
         # Include the body and any sub-blocks exactly once
         results += _PdsBlock.execute(self, state)
@@ -486,7 +555,7 @@ class _PdsNoteBlock(_PdsBlock):
         self.template = template
 
         if arg:
-            raise TemplateError(f'Extraneous argument for {self.header} at '
+            raise TemplateAbort(f'Extraneous argument for {self.header} at '
                                 f'{self.filepath.name}:{line}')
 
         # Save internal sub-blocks until the $END_NOTE is found
@@ -495,7 +564,7 @@ class _PdsNoteBlock(_PdsBlock):
             self.sub_blocks.append(_PdsBlock.new_block(sections, template, self.filepath))
 
         if not sections:
-            raise TemplateError(f'Unterminated {header} block starting at '
+            raise TemplateAbort(f'Unterminated {header} block starting at '
                                 f'{self.filepath.name}:{line}')
 
         # Handle the matching $END_NOTE section as $ONCE
@@ -506,7 +575,7 @@ class _PdsNoteBlock(_PdsBlock):
         """Evaluate this block of label text, using the dictionaries to fill in the
         blanks. The content is returned as a deque of strings, to be joined upon
         completion to create the label content.
-     """
+        """
 
         return deque()
 
@@ -536,7 +605,7 @@ class _PdsForBlock(_PdsBlock):
 
         # Interpret arg as (value=expression), (value,index=expression), etc.
         if not arg:
-            raise TemplateError(f'Missing argument for {header} at '
+            raise TemplateAbort(f'Missing argument for {header} at '
                                 f'{self.filepath.name}:{line}')
 
         self.value = 'VALUE'
@@ -563,7 +632,7 @@ class _PdsForBlock(_PdsBlock):
             self.sub_blocks.append(_PdsBlock.new_block(sections, template, self.filepath))
 
         if not sections:
-            raise TemplateError(f'Unterminated {header} block starting at '
+            raise TemplateAbort(f'Unterminated {header} block starting at '
                                 f'{self.filepath.name}:{line}')
 
         # Handle the matching $END_FOR section as $ONCE
@@ -576,13 +645,9 @@ class _PdsForBlock(_PdsBlock):
         completion.
         """
 
-        try:
-            iterator = self.evaluate_expression(self.arg, self.line, state)
-        except Exception as err:
-            if state.raise_exceptions:
-                raise
-            _LOGGER.exception(err, state.label_path)
-            return deque([f'[[[{err}]]]'])      # include the error text inside the label
+        iterator = self.evaluate_expression(self.arg, self.line, state)
+        if _PdsBlock._is_error(iterator):
+            return deque([iterator])    # include the error text inside the label
 
         # Create a new local dictionary
         state.local_dicts.append(state.local_dicts[-1].copy())
@@ -620,7 +685,7 @@ class _PdsIfBlock(_PdsBlock):
         self.template = template
 
         if not arg:
-            raise TemplateError(f'Missing argument for {header} at '
+            raise TemplateAbort(f'Missing argument for {header} at '
                                 f'{self.filepath.name}:{line}')
 
         match = _PdsIfBlock.PATTERN.fullmatch(arg)
@@ -635,7 +700,7 @@ class _PdsIfBlock(_PdsBlock):
             self.sub_blocks.append(_PdsBlock.new_block(sections, template, self.filepath))
 
         if not sections:
-            raise TemplateError(f'Unterminated {header} block starting at '
+            raise TemplateAbort(f'Unterminated {header} block starting at '
                                 f'{self.filepath.name}:{line}')
 
         # Handle the first $ELSE_IF. It will handle more $ELSE_IFs and $ELSEs recursively.
@@ -658,14 +723,9 @@ class _PdsIfBlock(_PdsBlock):
         completion to be joined upon completion to create the label content.
         """
 
-        try:
-            status = self.evaluate_expression(self.arg, self.line, state)
-        except Exception as err:
-            if state.raise_exceptions:
-                raise
-            _LOGGER.exception(err, state.label_path)
-            # Include the error text inside the label
-            return deque([f'[[[{err}]]]'])      # include the error text inside the label
+        status = self.evaluate_expression(self.arg, self.line, state)
+        if _PdsBlock._is_error(status):
+            return deque([status])      # include the error text inside the label
 
         # Create a new local dictionary for IF but not ELSE_IF
         if self.header == '$IF':
@@ -707,7 +767,7 @@ class _PdsElseBlock(_PdsBlock):
             self.sub_blocks.append(_PdsBlock.new_block(sections, template, self.filepath))
 
         if not sections:
-            raise TemplateError(f'Unterminated {header} block starting at '
+            raise TemplateAbort(f'Unterminated {header} block starting at '
                                 f'{self.filepath.name}:{line}')
 
         # Handle the matching $END_IF section as $ONCE
@@ -734,7 +794,7 @@ class _PdsIncludeBlock(_PdsBlock):
         self.template = template
 
         if not arg:
-            raise TemplateError(f'Missing argument for {header} at '
+            raise TemplateAbort(f'Missing argument for {header} at '
                                 f'{self.filepath.name}:{line}')
 
     def execute(self, state):
@@ -745,27 +805,24 @@ class _PdsIncludeBlock(_PdsBlock):
         results = deque()
 
         # Interpret the file name
-        try:
-            filename = self.evaluate_expression(self.arg, self.line, state)
-        except Exception as err:
-            if state.raise_exceptions:
-                raise
-            _LOGGER.exception(err, state.label_path)
-            return deque([f'[[[{err}]]]'])      # include the error text inside the label
+        filename = self.evaluate_expression(self.arg, self.line, state)
+        if _PdsBlock._is_error(filename):
+            return deque(['$INCLUDE(', filename, ')\n'])  # put error text into the label
 
         # Read the file
         try:
             content = _PdsIncludeBlock.get_content(filename,
                                                    self.template._include_dirs())
         except Exception as err:
-            message = f'{repr(err)} at {self.filepath.name}:{self.line}'
+            message = f'{repr(err)} in $INCLUDE at {state.filepath.name}:{self.line}'
             if state.raise_exceptions:
                 raise type(err)(message) from err
             try:
                 raise type(err)(message) from err
             except Exception as err:
-                _LOGGER.exception(err, state.label_path)
-                return deque([f'[[[{err}]]]'])  # include the error text inside the label
+                get_logger().exception(err, state.label_path,
+                                       info=self.error_info(self.line))
+            return deque(['$INCLUDE(', filename, ')\n'])  # put error text into the label
 
         # Compile and execute the included template
         blocks = _PdsBlock.process_headers(content, self.template, filepath=self.filepath)

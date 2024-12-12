@@ -14,7 +14,7 @@ import warnings
 
 from . import PdsTemplate
 from .asciitable import ANALYZE_TABLE, TABLE_VALUE, _latest_ascii_table
-from ._utils import get_logger, TemplateError, _check_terminators
+from ._utils import get_logger, TemplateError, TemplateAbort, _check_terminators
 
 
 class Pds3Table():
@@ -113,8 +113,8 @@ class Pds3Table():
         # column number without subtracting one.
 
         # Pre-process the edits
-        self._edit_dict = {}        # [colname][parname] -> replacement value
-        self._edited_values = {}    # [colname][parname] -> original value or None
+        self._edit_dict = {}            # [colname][parname] -> replacement value
+        self._edited_values = {}        # [colname][parname] -> original value or None
         for edit in edits:
             colname, _, tail = edit.partition(':')
             colname = colname.strip()
@@ -155,17 +155,18 @@ class Pds3Table():
                                             required=True, after='RECORD_BYTES')
 
         # Create header to analyze the table
-        header = ['$ONCE(ANALYZE_TABLE('
-                  'LABEL_PATH().replace(".lbl",".tab").replace(".LBL",".TAB")'
-                  ', crlf=True))', self.terminator]
+        header = ['$ONCE(ANALYZE_TABLE(LABEL_PATH().replace(".lbl",".tab")'
+                  '.replace(".LBL",".TAB"), crlf=True))', self.terminator]
         if validate:
-            header += ['$ONCE(VALIDATE_PDS3_LABEL())', self.terminator]
+            header += ['$ONCE(VALIDATE_PDS3_LABEL(hide_warnings, abort_on_error))',
+                       self.terminator]
 
         self.content = ''.join(header) + ''.join(parts)
         self.table = None
 
         # Set globals for access within the template object
         Pds3Table._LATEST_PDS3_TABLE = self
+
         PdsTemplate.define_global('VALIDATE_PDS3_LABEL', VALIDATE_PDS3_LABEL)
         PdsTemplate.define_global('LABEL_VALUE', LABEL_VALUE)
         PdsTemplate.define_global('OLD_LABEL_VALUE', OLD_LABEL_VALUE)
@@ -194,21 +195,21 @@ class Pds3Table():
         # Process the TABLE object header
         head = parts[0]
         head, self._table_values['INTERCHANGE_FORMAT'] = self._replace_value(
-                                            head, 'INTERCHANGE_FORMAT',
-                                            '$LABEL_VALUE("INTERCHANGE_FORMAT")$',
-                                            required=True, first=True)
+                                        head, 'INTERCHANGE_FORMAT',
+                                        '$LABEL_VALUE("INTERCHANGE_FORMAT")$',
+                                        required=True, first=True)
         head, self._table_values['ROWS'] = self._replace_value(
-                                            head, 'ROWS',
-                                            '$LABEL_VALUE("ROWS")$',
-                                            required=True, after='INTERCHANGE_FORMAT')
+                                        head, 'ROWS',
+                                        '$LABEL_VALUE("ROWS")$',
+                                        required=True, after='INTERCHANGE_FORMAT')
         head, self._table_values['COLUMNS'] = self._replace_value(
-                                            head, 'COLUMNS',
-                                            '$LABEL_VALUE("COLUMNS")$',
-                                            required=True, after='ROWS')
+                                        head, 'COLUMNS',
+                                        '$LABEL_VALUE("COLUMNS")$',
+                                        required=True, after='ROWS')
         head, self._table_values['ROW_BYTES'] = self._replace_value(
-                                            head, 'ROW_BYTES',
-                                            '$LABEL_VALUE("ROW_BYTES")$',
-                                            required=True, after='COLUMNS')
+                                        head, 'ROW_BYTES',
+                                        '$LABEL_VALUE("ROW_BYTES")$',
+                                        required=True, after='COLUMNS')
 
         return head + ''.join(parts[1:])
 
@@ -237,70 +238,70 @@ class Pds3Table():
         items = items or 1      # change None to 1
         self._column_items.append(items)
         label, self._column_values[-1]['ITEM_BYTES'] = self._replace_value(
-                                            label, 'ITEM_BYTES',
-                                            f'$LABEL_VALUE("ITEM_BYTES", {colnum})$',
-                                            required=(items > 1), after='ITEMS')
+                                        label, 'ITEM_BYTES',
+                                        f'$LABEL_VALUE("ITEM_BYTES", {colnum})$',
+                                        required=(items > 1), after='ITEMS')
         label, self._column_values[-1]['ITEM_OFFSET'] = self._replace_value(
-                                            label, 'ITEM_OFFSET',
-                                            f'$LABEL_VALUE("ITEM_OFFSET", {colnum})$',
-                                            required=(items > 1), after='ITEM_BYTES')
+                                        label, 'ITEM_OFFSET',
+                                        f'$LABEL_VALUE("ITEM_OFFSET", {colnum})$',
+                                        required=(items > 1), after='ITEM_BYTES')
 
         # Update the offset for the next column
         self._extra_items += items - 1   # accumulate the column offset
 
         # Parameters always present: DATA_TYPE, START_BYTE, BYTES
         label, data_type = self._replace_value(
-                                            label, 'DATA_TYPE',
-                                            f'$LABEL_VALUE("DATA_TYPE", {colnum})$',
-                                            required=True, after='NAME')
+                                        label, 'DATA_TYPE',
+                                        f'$LABEL_VALUE("DATA_TYPE", {colnum})$',
+                                        required=True, after='NAME')
         self._column_values[-1]['DATA_TYPE'] = data_type
 
         label, self._column_values[-1]['START_BYTE'] = self._replace_value(
-                                            label, 'START_BYTE',
-                                            f'$LABEL_VALUE("START_BYTE", {colnum})$',
-                                            required=True, after='DATA_TYPE')
+                                        label, 'START_BYTE',
+                                        f'$LABEL_VALUE("START_BYTE", {colnum})$',
+                                        required=True, after='DATA_TYPE')
         label, self._column_values[-1]['BYTES'] = self._replace_value(
-                                            label, 'BYTES',
-                                            f'$LABEL_VALUE("BYTES", {colnum})$',
-                                            required=True, after='START_BYTE')
+                                        label, 'BYTES',
+                                        f'$LABEL_VALUE("BYTES", {colnum})$',
+                                        required=True, after='START_BYTE')
 
         # Optional COLUMN_NUMBER
         label, self._column_values[-1]['COLUMN_NUMBER'] = self._replace_value(
-                                            label, 'COLUMN_NUMBER',
-                                            f'$LABEL_VALUE("COLUMN_NUMBER", {colnum})$',
-                                            required=self.numbers, after='NAME')
+                                        label, 'COLUMN_NUMBER',
+                                        f'$LABEL_VALUE("COLUMN_NUMBER", {colnum})$',
+                                        required=self.numbers, after='NAME')
 
         # Optional FORMAT
         label, self._column_values[-1]['FORMAT'] = self._replace_value(
-                                            label, 'FORMAT',
-                                            f'$LABEL_VALUE("FORMAT", {colnum})$',
-                                            required=self.formats, after='BYTES')
+                                        label, 'FORMAT',
+                                        f'$QUOTE_IF(LABEL_VALUE("FORMAT", {colnum}))$',
+                                        required=self.formats, after='BYTES')
 
         # Optional MINIMUM_VALUE, MAXIMUM_VALUE
         required = ((name in self.minmax)
                     or ('float' in self.minmax and 'REAL' in data_type)
                     or ('int' in self.minmax and 'INT' in data_type))
         label, self._column_values[-1]['MINIMUM_VALUE'] = self._replace_value(
-                                            label, 'MINIMUM_VALUE',
-                                            f'$LABEL_VALUE("MINIMUM_VALUE", {colnum})$',
-                                            required=required, before='DESCRIPTION')
+                                        label, 'MINIMUM_VALUE',
+                                        f'$LABEL_VALUE("MINIMUM_VALUE", {colnum})$',
+                                        required=required, before='DESCRIPTION')
         label, self._column_values[-1]['MAXIMUM_VALUE'] = self._replace_value(
-                                            label, 'MAXIMUM_VALUE',
-                                            f'$LABEL_VALUE("MAXIMUM_VALUE", {colnum})$',
-                                            required=required, after='MINIMUM_VALUE')
+                                        label, 'MAXIMUM_VALUE',
+                                        f'$LABEL_VALUE("MAXIMUM_VALUE", {colnum})$',
+                                        required=required, after='MINIMUM_VALUE')
 
         # Optional DERIVED_MINIMUM, DERIVED_MAXIMUM
         required = ((name in self.derived)
                     or ('float' in self.derived and 'REAL' in data_type)
                     or ('int' in self.derived and 'INT' in data_type))
         label, self._column_values[-1]['DERIVED_MINIMUM'] = self._replace_value(
-                                            label, 'DERIVED_MINIMUM',
-                                            f'$LABEL_VALUE("DERIVED_MINIMUM", {colnum})$',
-                                            required=required, before='DESCRIPTION')
+                                        label, 'DERIVED_MINIMUM',
+                                        f'$LABEL_VALUE("DERIVED_MINIMUM", {colnum})$',
+                                        required=required, before='DESCRIPTION')
         label, self._column_values[-1]['DERIVED_MAXIMUM'] = self._replace_value(
-                                            label, 'DERIVED_MAXIMUM',
-                                            f'$LABEL_VALUE("DERIVED_MAXIMUM", {colnum})$',
-                                            required=required, after='DERIVED_MINIMUM')
+                                        label, 'DERIVED_MAXIMUM',
+                                        f'$LABEL_VALUE("DERIVED_MAXIMUM", {colnum})$',
+                                        required=required, after='DERIVED_MINIMUM')
 
         # Save these for later use if needed
         self._column_values[-1]['INVALID_CONSTANT'] = \
@@ -408,7 +409,8 @@ class Pds3Table():
 
         return len(messages)
 
-    def _validate_inside_template(self, table=None):
+    def _validate_inside_template(self, table=None, *, hide_warnings=False,
+                                  abort_on_error=True):
         """Compare this object to the given AsciiTable object and log a warning message
         for each erroneous value identified.
 
@@ -417,19 +419,35 @@ class Pds3Table():
                 The AsciiTable assigned to this label. If this is specified and is
                 different from the currently assigned table, it becomes the assigned
                 table.
+            hide_warnings (bool, options): True to log errors but not warnings.
+            abort_on_error (bool, optional): True to issue a TemplateAbort exception if
+                errors are encountered.
 
         Returns:
+            int: The number of errors issued.
             int: The number of warnings issued.
         """
 
         messages = self._validation_warnings(table)
-        if messages:
-            for message in messages:
-                get_logger().warn(message, force=True)
-        else:
-            get_logger().info('Validation successful')
+        if not messages:
+            return (0, 0)
 
-        return len(messages)
+        logger = get_logger()
+        errors = 0
+        warns = 0
+        for message in messages:
+            if message.startswith('ERROR: '):
+                logger.error(message[7:])
+                errors += 1
+            else:
+                warns += 1
+                if not hide_warnings:
+                    logger.warn(message)
+
+        if errors and abort_on_error:
+            raise TemplateAbort('Aborted')
+
+        return (errors, warns)
 
     def _validation_warnings(self, table=None):
         """Compare this object to the given AsciiTable object and return a list of
@@ -440,7 +458,8 @@ class Pds3Table():
                 validation. If not specified, the latest analyzed ASCII table is used.
 
         Returns:
-            list[str]: A list of warning messages.
+            list[str]: A list of messages. Messages that begin with "ERROR: " are
+                irrecoverable errors; anything else is a warning.
         """
 
         self.assign_to(table)
@@ -450,19 +469,24 @@ class Pds3Table():
                                 self.labelpath)
 
         messages = []       # accumulated list of warnings
+
+        # Required top-level attributes
         for name in ['RECORD_TYPE', 'RECORD_BYTES', 'FILE_RECORDS', 'INTERCHANGE_FORMAT',
                      'ROWS', 'COLUMNS', 'ROW_BYTES']:
             messages += self._check_value(name, required=True)
 
+        # Check each column...
         label_columns = len(self._column_values) - 1
         table_columns = self.lookup('COLUMNS')
         for colnum in range(1, min(label_columns, table_columns)+1):
             colname = self._column_name[colnum]
             data_type = self.lookup('DATA_TYPE', colnum)
 
+            # Required attributes
             for name in ['NAME', 'DATA_TYPE', 'START_BYTE', 'BYTES']:
                 messages += self._check_value(name, colnum, required=True)
 
+            # Tests for multiple ITEMS
             items = self._column_items[colnum]
             for name in ['ITEM_BYTES', 'ITEM_OFFSET']:
                 messages += self._check_value(name, colnum, required=(items > 1),
@@ -476,9 +500,20 @@ class Pds3Table():
                     messages.append(f'{colname}:{name} items have inconsistent quote '
                                     'usage')
 
+            # Optional attributes
             messages += self._check_value('COLUMN_NUMBER', colnum, required=self.numbers)
             messages += self._check_value('FORMAT', colnum, required=self.formats)
 
+            # Direct edits
+            for name, old_value in self._edited_values.get(colname, {}).items():
+                new_value = self._edit_dict[colname][name]
+                if old_value is None:
+                    messages.append(f'{colname}:{name} was inserted: {new_value}')
+                else:
+                    messages.append(f'{colname}:{name} was edited: '
+                                    f'{old_value} -> {new_value}')
+
+            # Minima/maxima
             required = ((colname in self.minmax)
                         or ('float' in self.minmax and 'REAL' in data_type)
                         or ('int' in self.minmax and 'INT' in data_type))
@@ -488,24 +523,39 @@ class Pds3Table():
             required = ((colname in self.derived)
                         or ('float' in self.derived and 'REAL' in data_type)
                         or ('int' in self.derived and 'INT' in data_type))
-            messages += self._check_value('DERIVED_MINIMUM', colnum, required=required)
-            messages += self._check_value('DERIVED_MAXIMUM', colnum, required=required)
+            messages += self._check_value('DERIVED_MINIMUM', colnum,
+                                          required=required)
+            messages += self._check_value('DERIVED_MAXIMUM', colnum,
+                                          required=required)
 
-            for name, old_value in self._edited_values.get(colname, {}).items():
-                new_value = self._edit_dict[colname][name]
-                if old_value is None:
-                    messages.append(f'{colname}:{name} was inserted: {new_value}')
-                else:
-                    messages.append(f'{colname}:{name} was edited: '
-                                    f'{old_value} -> {new_value}')
+            # Constants
+            for name in ['INVALID_CONSTANT', 'MISSING_CONSTANT',
+                         'NOT_APPLICABLE_CONSTANT', 'NULL_CONSTANT', 'UNKNOWN_CONSTANT',
+                         'VALID_MINIMUM', 'VALID_MAXIMUM']:
+                value = self.lookup(name, colnum)
+                if value is None:
+                    continue
 
+                if isinstance(value, float) and 'REAL' in data_type:
+                    continue
+                if isinstance(value, int) and 'INT' in data_type:
+                    continue
+                if isinstance(value, str) and 'CHAR' in data_type:
+                    continue
+
+                valfmt = Pds3Table._format(value)
+                message = (f'ERROR: {colname}:{name} value {valfmt} is incompatible with '
+                           f'column type {data_type}')
+                messages.append(message)
+
+        # Check for missing or extraneous columns
         for colnum in range(table_columns+1, label_columns+1):
             colname = self._column_name[colnum]
-            messages.append(f'column {colname} is missing')
+            messages.append(f'ERROR: Column {colname} is missing')
 
         table_extras = table_columns - label_columns
         if table_extras > 0:
-            messages.append(f'table contains {table_extras} undefined column'
+            messages.append(f'ERROR: Table contains {table_extras} undefined column'
                             + ('s' if table_extras > 1 else ''))
 
         return messages
@@ -547,6 +597,10 @@ class Pds3Table():
 
         new_fmt = Pds3Table._format(new_value)
         old_fmt = Pds3Table._format(old_value)
+        if old_fmt == new_fmt:      # occurs when comparing strings with/without quotes
+            old_fmt = old_value
+            new_fmt = new_value
+
         return [f'{prefix}{name} error: {old_fmt} -> {new_fmt}']
 
     ######################################################################################
@@ -623,6 +677,10 @@ class Pds3Table():
             case 'TABLE_BASENAME':
                 if self.get_table_basename():
                     return self.get_table_basename()
+            case ('NAME' | 'ITEMS' | 'SCALING_FACTOR' | 'OFFSET' | 'INVALID_CONSTANT' |
+                  'MISSING_CONSTANT' | 'NOT_APPLICABLE_CONSTANT' | 'NULL_CONSTANT' |
+                  'UNKNOWN_CONSTANT' | 'VALID_MINIMUM' | 'VALID_MAXIMUM'):
+                return self.old_lookup(name, colnum)
 
         if not self.table:
             self.assign_to()
@@ -637,7 +695,7 @@ class Pds3Table():
             case 'FILE_RECORDS' | 'ROWS':
                 return self.table.lookup('ROWS')
             case 'COLUMNS':
-                return self.table.lookup('COLUMNS') - self._extra_items
+                return self._columns_carefully()
             case 'DATA_TYPE':
                 # Override derived DATA_TYPE if every value in the table is invalid
                 old_value = self._column_values[colnum]['DATA_TYPE']
@@ -719,10 +777,17 @@ class Pds3Table():
             }
             unique = self._unique_values(colnum) - constants
 
-            if (value := self._column_values[colnum]['VALID_MINIMUM']) is not None:
-                unique = {v for v in unique if v >= value}
-            if (value := self._column_values[colnum]['VALID_MAXIMUM']) is not None:
-                unique = {v for v in unique if v <= value}
+            if (value := column_dict['VALID_MINIMUM']) is not None:
+                try:
+                    unique = {v for v in unique if v >= value}
+                except TypeError:       # ignore an invalid VALID_MINIMUM
+                    pass
+
+            if (value := column_dict['VALID_MAXIMUM']) is not None:
+                try:
+                    unique = {v for v in unique if v <= value}
+                except TypeError:       # ignore an invalid VALID_MAXIMUM
+                    pass
 
             self._unique_valids_[colnum] = unique
 
@@ -739,6 +804,26 @@ class Pds3Table():
                 return False
 
         return True
+
+    def _columns_carefully(self):
+        """Careful tally of the correct number of COLUMN objects, allowing for a mismatch
+        between the table and the label.
+
+        Without errors, this should work:
+            columns = self.table.lookup('COLUMNS') - self._extra_items
+        However, self._extra_items includes extra items that might be missing from the
+        table.
+        """
+
+        table_columns = self.table.lookup('COLUMNS')
+        table_count = 0
+
+        for colnum in range(1, len(self._column_values)):
+            table_count += self._column_items[colnum]
+            if table_count >= table_columns:            # if we reach last table column
+                return colnum
+
+        return colnum + table_columns - table_count     # maybe table has more columns
 
     def old_lookup(self, name, column=0):
         """Lookup function returning information about the current content of the PDS3
@@ -760,8 +845,8 @@ class Pds3Table():
                 column; use 0 for general parameters.
 
         Returns:
-            str: The current value of the specified parameter, or None if it is not found
-                in the label.
+            int, float, str, or None: The current value of the specified parameter; None
+                if it is not found in the label.
         """
 
         if not column:
@@ -815,13 +900,14 @@ class Pds3Table():
                 return (label, None)
 
             new_label = self._insert_value(label, name, replacement, after=after,
-                                            before=before, first=first)
+                                           before=before, first=first)
             return (new_label, None)
 
-        value = Pds3Table._eval(parts[2])
+        value = parts[2]
         if not self.analyze_only:
             label = parts[0] + parts[1] + replacement + ''.join(parts[3:])
-        return (label, value)
+
+        return (label, Pds3Table._eval(value))
 
     def _insert_value(self, label, name, value, *, after=None, before=None, first=False):
         """Insert a new name=value entry into the label string.
@@ -885,8 +971,7 @@ class Pds3Table():
             name (str): PDS3 parameter name.
 
         Returns:
-            (int, float, str, or None): The value of the parameter if present; None
-                otherwise.
+            str or None: The string value of the parameter if present; None otherwise.
         """
 
         # Find name=value substring
@@ -896,17 +981,23 @@ class Pds3Table():
 
         return Pds3Table._eval(matches[0].rstrip())
 
+    _UNQUOTED_OK = re.compile(r'[A-Za-z]\w*')
+
     @staticmethod
     def _eval(value):
-        """Convert the given string value to int, float, or un-quoted string."""
+        """Convert the given string value to int, float, or string.
+
+        Unnecessary quotes are stripped, but necessary quotes are retained.
+        """
 
         if value is None:
             return None
 
         if isinstance(value, str):
             value = value.strip()
-            if value[0] == '"':
-                return value[1:-1].strip()
+            if (value.startswith('"') and value.endswith('"')
+                and Pds3Table._UNQUOTED_OK.fullmatch(value[1:-1])):
+                return value[1:-1]
 
             try:
                 return int(value)
@@ -933,16 +1024,15 @@ class Pds3Table():
             if '.' not in before:
                 before += '.'
             before.rstrip('0')
-            return before + optional_e + after
-
-        if value.startswith('"'):
-            value = value.rstrip()[1:-1]
-        value = value.rstrip()
+            return before + optional_e.upper() + after
 
         if value in ('N/A', "'N/A'"):
             return "'N/A'"
 
-        if value.isidentifier():
+        if value.startswith('"'):
+            return value
+
+        if Pds3Table._UNQUOTED_OK.fullmatch(value):
             return value
 
         return '"' + value + '"'
@@ -983,17 +1073,16 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
             these values for all floating-point columns.
         edits (list[str]), optional):
             A list of strings of the form "column:name = value", which should be used to
-            insert or replace values currently in the label. derived FORMAT and DATA_TYPE
-            values.
+            insert or replace values currently in the label.
 
     Returns:
         str: The revised content for the template.
     """
 
-    with get_logger().open('PDS3 table preprocessor', labelpath):
-        pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
-                               formats=formats, minmax=minmax, derived=derived,
-                               edits=edits)
+    logger = get_logger()
+    logger.debug('PDS3 table preprocessor', labelpath)
+    pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
+                           formats=formats, minmax=minmax, derived=derived, edits=edits)
 
     return pds3_label.content
 
@@ -1001,69 +1090,54 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
 # Template functions
 ##########################################################################################
 
-def VALIDATE_PDS3_LABEL():
+def VALIDATE_PDS3_LABEL(hide_warnings=False, abort_on_error=True):
     """Log a warning for every error found when generating this PDS3 label.
 
+    Parameters:
+        abort_on_error (bool): If True and a validation error occurs, further evaluation
+            of the template will be aborted.
+
     Returns:
+        int: The number of errors issued.
         int: The number of warnings issued.
     """
 
     label = Pds3Table._LATEST_PDS3_TABLE
-    with get_logger().open('Validating PDS3 label', label.labelpath):
-        count = Pds3Table._validate_inside_template(label)
+    get_logger().debug('Validating PDS3 label', label.labelpath)
+    return Pds3Table._validate_inside_template(label, hide_warnings=hide_warnings,
+                                               abort_on_error=abort_on_error)
 
-    return count
 
+def ANALYZE_PDS3_LABEL(labelpath, *, validate=True):
+    """Analyze the current template as applied to the most recently analyzed ASCII table.
 
-def ANALYZE_PDS3_LABEL(labelpath, *, validate=True, numbers=False, formats=False,
-                       minmax=(), derived=(), edits=[]):
-    """Analyze the current PDS3 label as applied to the most recently analyzed ASCII table
-    or template for an ASCII table, replacing given values with
-    those to be derived from an ASCII table.
-
-    After the template is preprocessed, the function "`$LABEL_VALUE()$`" can be used
-    anywhere in the template to fill in values derived from the table.
+    After this call, the function "`$LABEL_VALUE()$`" can be used anywhere in the template
+    to fill in values derived from the table.
 
     Parameters:
         labelpath (str or pathlib.Path):
             Path to the current label.
         validate (bool, optional):
-            If True, warning message will be logged for every error found in the template;
-            otherwise, errors will be corrected silently.
-        numbers (bool, optional):
-            True to include COLUMN_NUMBER into each COLUMN object if it is not already
-            there.
-        formats (bool, optional):
-            True to include FORMAT into each COLUMN object if it is not already there.
-        minmax (str, tuple[str], or list[str], optional):
-            Zero or more names of columns for which to include the MINIMUM_VALUE and
-            MAXIMUM_VALUE. In addition or as an alternative, use "float" to include these
-            values for all floating-point columns and/or "int" to include these values for
-            all integer columns.
-        derived (str, tuple[str], or list[str], optional):
-            Zero or more names of columns for which to include the DERIVED_MINIMUM and
-            DERIVED_MAXIMUM. In addition or as an alternative, use "float" to include
-            these values for all floating-point columns.
-        edits (list[str]), optional):
-            A list of strings of the form "column:name = value", which should be used to
-            insert or replace values currently in the label. derived FORMAT and DATA_TYPE
-            values.
+            If True, a warning or error message will be logged for every problem found in
+            the template. Otherwise, warnings will be corrected silently.
+        abort_on_error (bool): If True and a validation error occurs that is not
+            recoverable, generation of the label will be aborted. Validation warnings do
+            not cause an abort.
     """
 
-    with get_logger().open('Analyzing PDS3 label', labelpath):
-        label = Pds3Table(labelpath, numbers=numbers, formats=formats, minmax=minmax,
-                          derived=derived, edits=edits, analyze_only=True)
-
-        if validate:
-            Pds3Table._validate_inside_template(label)
+    get_logger().debug('Analyzing PDS3 label', labelpath)
+    label = Pds3Table(labelpath, validate=False, analyze_only=True)
+    if validate:
+        return Pds3Table._validate_inside_template(label, hide_warnings=False,
+                                                   abort_on_error=False)
 
 
 def LABEL_VALUE(name, column=0):
     """Lookup function returning information about the PDS3 label after it has been
     analyzed or pre-processed and after the ASCII table has been analyzed.
 
-    Each of the following function calls returns a valid PDS3 parameter value. Columns
-    can be identified by name or by number starting from 1.
+    Each of the following function calls returns a valid PDS3 parameter value. Columns can
+    be identified by name or by number starting from 1.
 
     * `LABEL_VALUE("TABLE")
     * `LABEL_VALUE("RECORD_TYPE")`
@@ -1084,10 +1158,17 @@ def LABEL_VALUE(name, column=0):
     * 'LABEL_VALUE("DERIVED_MINIMUM", <column>)`
     * 'LABEL_VALUE("DERIVED_MAXIMUM", <column>)`
 
-    In addition, column values from the first and last rows of a table can be accessed as:
+    It also provides these values derived from the existing template or label: "NAME",
+    "ITEMS", "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
+    "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MINIMUM", and
+    "VALID_MAXIMUM".
 
-    * 'LABEL_VALUE("FIRST", <column>)`
-    * 'LABEL_VALUE("LAST", <column>)`
+    In addition, these options are supported:
+
+    * `LABEL_VALUE("TABLE_PATH")`: full path to the associated ASCII table file.
+    * `LABEL_VALUE("TABLE_BASENAME")`: basename of the associated ASCII table file.
+    * 'LABEL_VALUE("FIRST", <column>)`: value from the first row of this column.
+    * 'LABEL_VALUE("LAST", <column>)`: value from the last row of this column.
 
     Parameters:
         name (str): Name of a parameter.
@@ -1095,16 +1176,19 @@ def LABEL_VALUE(name, column=0):
             column; use 0 for general parameters.
 
     Returns:
-        str: The correct PDS3-formatted value for the specified parameter.
+        int, float, str, or None: The correct value for the specified parameter.
     """
 
     if not Pds3Table._LATEST_PDS3_TABLE:
-        raise TemplateError('No PDS3 label has been analyzed')
+        raise TemplateAbort('No PDS3 label has been analyzed')
 
     if _latest_ascii_table():       # make sure we're referring to the latest AsciiTable
         Pds3Table._LATEST_PDS3_TABLE.assign_to()
 
-    return Pds3Table._LATEST_PDS3_TABLE.lookup(name, column)
+    try:
+        return Pds3Table._LATEST_PDS3_TABLE.lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
 
 
 def OLD_LABEL_VALUE(name, column=0):
@@ -1127,11 +1211,13 @@ def OLD_LABEL_VALUE(name, column=0):
             column; use 0 for general parameters.
 
     Returns:
-        str: The current value of the specified parameter, or None if it is not found in
-            the label.
+        int, float, str, or None: The correct value for the specified parameter.
     """
 
-    return Pds3Table._LATEST_PDS3_TABLE.old_lookup(name, column)
+    try:
+        return Pds3Table._LATEST_PDS3_TABLE.old_lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
 
 
 PdsTemplate.define_global('ANALYZE_PDS3_LABEL', ANALYZE_PDS3_LABEL)

@@ -466,13 +466,11 @@ def ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape=''):
     AsciiTable._LATEST_ASCII_TABLE = None
 
     logger = get_logger()
-    logger.open('Analyzing ASCII table', filepath)
+    logger.debug('Analyzing ASCII table', filepath)
     try:
         _ = AsciiTable(filepath, separator=separator, crlf=crlf, escape=escape)
     except Exception as err:
         logger.exception(err)
-    finally:
-        logger.close(force='error')
 
 
 def TABLE_VALUE(name, column=0):
@@ -489,8 +487,7 @@ def TABLE_VALUE(name, column=0):
     * `TABLE_VALUE["TERMINATORS"] = length of terminator: 1 for <LF>, 2 for <CR><LF>.
     * `TABLE_VALUE("WIDTH", <column>)` = width of the column in bytes.
     * `TABLE_VALUE("PDS3_FORMAT", <column>)` = a string containing the format for PDS3,
-      e.g., `I7`, `A23`, or `"F12.4"`. If it contains a period, it is surrounded by
-      quotes.
+      e.g., `I7`, `A23`, or `F12.4`.
     * `TABLE_VALUE("PDS4_FORMAT", <column>)` = a string containing the format for PDS4,
       e.g., `%7d`, `%23s`, or `%12.4f`.
     * 'TABLE_VALUE("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of `CHARACTER`,
@@ -519,7 +516,10 @@ def TABLE_VALUE(name, column=0):
     if not table:
         raise TemplateError('no ASCII table has been analyzed')
 
-    return table.lookup(name, column)
+    try:
+        return table.lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
 
 
 def _latest_ascii_table():

@@ -101,7 +101,15 @@ class Test_Pds3Table(unittest.TestCase):
                   'IR_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
                   'VIS_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
                   'SC_SUN_POSITION_VECTOR:DATA_TYPE error: ASCII_REAL -> ASCII_INTEGER',
-                  'SC_SUN_VELOCITY_VECTOR:DATA_TYPE error: ASCII_REAL -> ASCII_INTEGER']
+                  'ERROR: SC_SUN_POSITION_VECTOR:NOT_APPLICABLE_CONSTANT value -1.E+32 '
+                  'is incompatible with column type ASCII_INTEGER',
+                  'ERROR: SC_SUN_POSITION_VECTOR:NULL_CONSTANT value 1.E+32 is '
+                  'incompatible with column type ASCII_INTEGER',
+                  'SC_SUN_VELOCITY_VECTOR:DATA_TYPE error: ASCII_REAL -> ASCII_INTEGER',
+                  'ERROR: SC_SUN_VELOCITY_VECTOR:NOT_APPLICABLE_CONSTANT value -1.E+32 '
+                  'is incompatible with column type ASCII_INTEGER',
+                  'ERROR: SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT value 1.E+32 is '
+                  'incompatible with column type ASCII_INTEGER']
         self.assertEqual(warnings, answer)
 
         label = Pds3Table(path, edits=['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT = 0.',
@@ -127,6 +135,7 @@ class Test_Pds3Table(unittest.TestCase):
                                  'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT = 0.'])
         with (test_file_dir / 'COVIMS_0094_index_template.txt').open('rb') as f:
             answer = f.read().decode('latin-1')
+        # print(label.content)
         self.assertEqual(answer, label.content)
 
         # Preprocessor
@@ -134,7 +143,8 @@ class Test_Pds3Table(unittest.TestCase):
                   'derived': ('SC_SUN_POSITION_VECTOR', 'int'),
                   'edits': ['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT = 0.',
                             'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT = 0.']}
-        template = PdsTemplate(path, preprocess=pds3_table_preprocessor, kwargs=kwargs)
+        template = PdsTemplate(path, preprocess=pds3_table_preprocessor, kwargs=kwargs,
+                               crlf=True, upper_e=True)
 
         dirpath = pathlib.Path(tempfile.mkdtemp())
         try:
@@ -187,7 +197,7 @@ class Test_Pds3Table(unittest.TestCase):
         kwargs = {'validate': False, 'numbers': True, 'formats': True}
         sky_summary = PdsTemplate(test_file_dir / 'sky_summary_template.txt',
                                   preprocess=pds3_table_preprocessor, kwargs=kwargs,
-                                  crlf=True)
+                                  crlf=True, upper_e=True)
 
         self.maxDiff = None
         with open(test_file_dir/'sky_summary_template_preprocessed.txt', 'r') as f:
@@ -209,7 +219,8 @@ class Test_Pds3Table(unittest.TestCase):
         content = content.replace('TABLE', 'IMAGE')
         self.assertRaisesRegex(TemplateError, r'Template does not contain.*',
                                PdsTemplate, template_path, content,
-                               preprocess=pds3_table_preprocessor)
+                               preprocess=pds3_table_preprocessor,
+                               crlf=True, upper_e=True)
 
         # Two tables
         with template_path.open('rb') as f:
@@ -218,7 +229,8 @@ class Test_Pds3Table(unittest.TestCase):
         content = content + content
         self.assertRaisesRegex(TemplateError, r'Template contains multiple.*',
                                PdsTemplate, template_path, content,
-                               preprocess=pds3_table_preprocessor)
+                               preprocess=pds3_table_preprocessor,
+                               crlf=True, upper_e=True)
 
         # Reset to starting point
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_PDS3_LABEL']

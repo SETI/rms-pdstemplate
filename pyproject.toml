@@ -40,8 +40,11 @@ Repository = "https://github.com/SETI/rms-pdstemplate"
 Source = "https://github.com/SETI/rms-pdstemplate"
 Issues = "https://github.com/SETI/rms-pdstemplate/issues"
 
+[project.scripts]
+tablelabel = "programs.tablelabel:main"
+
 [tool.setuptools]
-packages = ["pdstemplate"]
+packages = ["pdstemplate", "programs"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"

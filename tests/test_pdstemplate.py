@@ -298,11 +298,12 @@ class Test_Predefined(unittest.TestCase):
         self.assertEqual(T.generate({}), V)
         self.assertEqual(T._error_count, 1)
 
+        V = 'This is the ValueError at t.xml:1'
         try:
             _ = T.generate({}, raise_exceptions=True)
             self.assertTrue(False, "This should have raised an exception but didn't")
         except ValueError as e:
-            self.assertEqual(str(e), V[3:-4])
+            self.assertEqual(str(e), V)
             self.assertEqual(T._error_count, 1)
 
         # REPLACE_NA
@@ -572,11 +573,10 @@ class Test_Headers(unittest.TestCase):
 #                          '$ONCE expression does not define a variable at t.xml:1')
 
         T = PdsTemplate('t.xml', content='$ONCE(a=5/0)\n')
-        V = """[[[ZeroDivisionError(division by zero) at t.xml:1]]]"""
+        V = """[[[ZeroDivisionError(division by zero) in 5/0 at t.xml:1]]]"""
         with self.assertRaises(ZeroDivisionError) as context:
             T.generate({}, raise_exceptions=True)
-        self.assertEqual(str(context.exception),
-                         'ZeroDivisionError(division by zero) at t.xml:1')
+        self.assertEqual(str(context.exception), 'division by zero in 5/0 at t.xml:1')
         self.assertEqual(T.generate({}), V)
 
         # $NOTE and $END_NOTE
@@ -757,7 +757,7 @@ class Test_Misc(unittest.TestCase):
         # Raised exceptions
         T = PdsTemplate('t.xml', content='$1/0$\n', xml=False)
         D = {}
-        V = '[[[ZeroDivisionError(division by zero) at t.xml:1]]]\n'
+        V = '[[[ZeroDivisionError(division by zero) in 1/0 at t.xml:1]]]\n'
         self.assertEqual(T.generate(D), V)
         self.assertEqual(T.generate(D, raise_exceptions=False), V)
 
@@ -769,7 +769,7 @@ class Test_Misc(unittest.TestCase):
                 SOMETHING
             $END_IF\n""")
         D = {}
-        V = '\n[[[ZeroDivisionError(division by zero) at t.xml:2]]]'
+        V = '\n[[[ZeroDivisionError(division by zero) in (1/0) at t.xml:2]]]'
         self.assertEqual(T.generate(D), V)
 
         with self.assertRaises(ZeroDivisionError):
@@ -780,7 +780,7 @@ class Test_Misc(unittest.TestCase):
                 SOMETHING
             $END_FOR\n""")
         D = {}
-        V = '\n[[[ZeroDivisionError(division by zero) at t.xml:2]]]'
+        V = '\n[[[ZeroDivisionError(division by zero) in (1/0) at t.xml:2]]]'
         self.assertEqual(T.generate(D), V)
 
         with self.assertRaises(ZeroDivisionError):
@@ -956,8 +956,7 @@ est laborum.
                 self.assertEqual(answer, (0, 0))
                 self.assertTrue(False, "This should have raised an exception but didn't")
             except ValueError as e:
-                self.assertEqual(str(e), 'ValueError(This is the ValueError) at '
-                                         'raises_template.txt:1')
+                self.assertEqual(str(e), 'This is the ValueError at raises_template.txt:1')
                 self.assertEqual(T._error_count, 1)
 
         # Test writing files with different terminators

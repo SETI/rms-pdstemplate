@@ -7,9 +7,25 @@ import pathlib
 
 from pdslogger import PdsLogger, LoggerError
 
-# Class for all template parsing exceptions
 class TemplateError(LoggerError):
+    """Class for all template parsing exceptions."""
     pass
+
+class TemplateAbort(TemplateError):
+    """Raise this class to abort processing a template if the situation is hopeless.
+
+    When raising an AbortTemplate exception, pass it the exact text to appear in the log.
+    It will appear as a FATAL message with "**** " followed by this text and then a colon
+    and the file name.
+    """
+    pass
+
+class _RaisedException(Exception):
+    """Internal; used to manage error messages from $RAISE()$."""
+
+    def __init__(self, exception, message):
+        self.exception = exception
+        self.message = message
 
 _NOESCAPE_FLAG = '!!NOESCAPE!!:'    # used internally
 
@@ -44,11 +60,15 @@ def set_logger(logger):
 
     Parameters:
         logger (PdsLogger): Logger to use, replacing the default.
+
+    Returns:
+        PdsLogger: The new PdsLogger.
     """
 
     global _LOGGER
 
     _LOGGER = logger
+    return _LOGGER
 
 
 def get_logger():

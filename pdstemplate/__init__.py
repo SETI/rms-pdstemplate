@@ -28,10 +28,10 @@ try:
 except ImportError:                                                 # pragma: no cover
     __version__ = 'Version unspecified'
 
-from ._utils import TemplateError
-    # Unused here but included to support "from pdstemplate import TemplateError"
+from ._utils import TemplateError, TemplateAbort                    # noqa: F401
+    # Unused here but included to support "from pdstemplate import TemplateError", etc.
 
-from ._utils import _NOESCAPE_FLAG, getenv_include_dirs
+from ._utils import _RaisedException, _NOESCAPE_FLAG, getenv_include_dirs
 from ._utils import set_logger, get_logger, set_log_level, set_log_format
 from ._pdsblock import _PdsBlock, _PdsIncludeBlock
 
@@ -51,7 +51,7 @@ class PdsTemplate:
     _CURRENT_GLOBAL_DICT = {}
 
     def __init__(self, template, content='', *, xml=None, crlf=None, preprocess=None,
-                 args=(), kwargs={}, includes=[]):
+                 args=(), kwargs={}, includes=[], upper_e=False):
         """Construct a PdsTemplate object from the contents of a template file.
 
         Parameters:
@@ -86,6 +86,9 @@ class PdsTemplate:
                 PDSTEMPLATE_INCLUDES, which should contain one or more directory paths
                 separated by colons. Any directories specified here are searched before
                 those defined by PDSTEMPLATE_INCLUDES.
+            upper_e (bool, optional):
+                True to force the "E" in the exponents of floating-point numbers to be
+                upper case.
         """
 
         self.template_path = pathlib.Path(template)
@@ -96,12 +99,14 @@ class PdsTemplate:
         includes = [includes] if isinstance(includes, (str, pathlib.Path)) else includes
         self._includes = [pathlib.Path(dir) for dir in includes]
 
+        self.upper_e = bool(upper_e)
+
         logger = get_logger()
-        logger.info('New PdsTemplate for', self.template_path)
+        logger.info('New PdsTemplate', self.template_path)
         try:
             # Read the template if necessary; use binary to preserve line terminators
             if not content:
-                logger.info('Reading template', self.template_path)
+                logger.debug('Reading template', self.template_path)
                 with self.template_path.open('rb') as f:
                     content = f.read()
                 content = content.decode('utf-8')
@@ -134,13 +139,21 @@ class PdsTemplate:
                     preprocess = [preprocess]
 
                 for k, func in enumerate(preprocess):
-                    with logger.open('Preprocessing with function ' + func.__name__):
-                        if k == 0:
-                            content = func(self.template_path, content, *args, **kwargs)
-                        else:
-                            content = func(self.template_path, content)
+                    logger.info('Preprocessing with ' + func.__name__)
+                    if k == 0:
+                        content = func(self.template_path, content, *args, **kwargs)
+                    else:
+                        content = func(self.template_path, content)
 
             self.content = content
+
+            # If the template has been pre-processed, line numbers in the error messages
+            # will no longer be correct (because they are the line numbers _after_
+            # pre-processing. Inside _pdsblock.py, this flag tells the logger to print the
+            # actual content of the line causing the error, for simpler diagnosis of the
+            # problem. DISABLED for now.
+            # self.include_error_info = (content != before)
+            self.include_error_info = False
 
             # Detect XML if not specified
             if xml is None:
@@ -199,7 +212,8 @@ class PdsTemplate:
 
         return False
 
-    def generate(self, dictionary, label_path='', *, raise_exceptions=False):
+    def generate(self, dictionary, label_path='', *, raise_exceptions=False,
+                 hide_warnings=False, abort_on_error=False):
         """Generate the content of one label based on the template and dictionary.
 
         Parameters:
@@ -210,6 +224,12 @@ class PdsTemplate:
             raise_exceptions (bool, optional):
                 True to raise any exceptions encountered; False to log them and embed the
                 error message into the label surrounded by "[[[" and "]]]".
+            hide_warnings (bool, optional):
+                True to hide warning messages.
+            abort_on_error (bool, optional):
+                True to abort the generation process if a validation error is encountered.
+                If `raise_exceptions` is True, an exception will be raised; otherwise, the
+                error will logged and an empty string will be returned.
 
         Returns:
             str: The generated content.
@@ -226,6 +246,8 @@ class PdsTemplate:
         for name, value in PdsTemplate._PREDEFINED_FUNCTIONS.items():
             if name not in global_dict:
                 global_dict[name] = value
+        global_dict['hide_warnings'] = bool(hide_warnings)
+        global_dict['abort_on_error'] = bool(abort_on_error)
         PdsTemplate._CURRENT_GLOBAL_DICT = global_dict
 
         state = _LabelState(self, global_dict, label_path,
@@ -234,12 +256,14 @@ class PdsTemplate:
         # Generate the label content recursively
         results = deque()
         logger = get_logger()
-        logger.open('Generating ' + (str(label_path) if label_path else 'label'))
+        logger.open('Generating label', label_path)
         try:
             for block in self._blocks:
                 results += block.execute(state)
+        except TemplateAbort as err:
+            logger.fatal('**** ' + err.message, label_path)
         finally:
-            (fatal, errors, warns, total) = logger.close(force='warn')
+            (fatal, errors, warns, total) = logger.close()
 
         content = ''.join(results)
         self._error_count = fatal + errors
@@ -286,8 +310,9 @@ class PdsTemplate:
             raise ValueError('invalid mode value: ' + repr(mode))
 
         label_path = pathlib.Path(label_path)
-        content = self.generate(dictionary, label_path, raise_exceptions=raise_exceptions)
-
+        content = self.generate(dictionary, label_path, raise_exceptions=raise_exceptions,
+                                hide_warnings=(mode == 'save'),
+                                abort_on_error=(mode != 'save'))
         errors = self._error_count
         warns = self._warning_count
         logger = get_logger()
@@ -296,12 +321,11 @@ class PdsTemplate:
         if mode == 'validate':
             if errors:
                 plural = 's' if errors > 1 else ''
-                logger.warn(f'Validation failed with {errors} error{plural}',
-                            label_path, force=True)
+                logger.error(f'Validation failed with {errors} error{plural}', label_path,
+                             force=True)
             elif warns:
-                plural = 's' if warns > 1 else ''
-                logger.warn(f'Validation failed with {warns} warning{plural}',
-                            label_path, force=True)
+                logger.warn(f'Validation failed with {warns} error{warns}', label_path,
+                            force=True)
             else:
                 logger.info('Validation successful', label_path, force=True)
 
@@ -751,18 +775,42 @@ class PdsTemplate:
         return _NOESCAPE_FLAG + text
 
     @staticmethod
+    def QUOTE_IF(text):
+        """Place the given text in quotes if it contains any character other than letters,
+        digits, and an underscore.
+
+        An empty string is also quoted. A string that is already enclosed in quotes is
+        not quoted (but quote balancing is not checked). Other values are returned
+        unchanged.
+
+        Parameters:
+            text (str): Text to possibly quote.
+
+        Returns:
+            str: The text with quotes if necessary.
+        """
+
+        if text.isidentifier():
+            return text
+
+        if text.startswith('"') and text.endswith('"'):
+            return text
+
+        return '"' + text + '"'
+
+    @staticmethod
     def RAISE(exception, message):
         """Raise an exception with the given class `exception` and the `message`.
 
         Parameters:
-            exception (Exception): The exception to raise.
+            exception (type): The class of the exception to raise, e.g., ValueError.
             message (str): The message to include in the exception.
 
         Raises:
             Exception: The specified exception.
         """
 
-        raise (exception)(message)
+        raise _RaisedException(exception, message)  # wrapper used to handle formatting
 
     @staticmethod
     def REPLACE_NA(value, na_value, flag='N/A'):
@@ -897,6 +945,7 @@ PdsTemplate._PREDEFINED_FUNCTIONS['GETENV'       ] = PdsTemplate.GETENV
 PdsTemplate._PREDEFINED_FUNCTIONS['LABEL_PATH'   ] = PdsTemplate.LABEL_PATH
 PdsTemplate._PREDEFINED_FUNCTIONS['LOG'          ] = PdsTemplate.LOG
 PdsTemplate._PREDEFINED_FUNCTIONS['NOESCAPE'     ] = PdsTemplate.NOESCAPE
+PdsTemplate._PREDEFINED_FUNCTIONS['QUOTE_IF'     ] = PdsTemplate.QUOTE_IF
 PdsTemplate._PREDEFINED_FUNCTIONS['RAISE'        ] = PdsTemplate.RAISE
 PdsTemplate._PREDEFINED_FUNCTIONS['REPLACE_NA'   ] = PdsTemplate.REPLACE_NA
 PdsTemplate._PREDEFINED_FUNCTIONS['REPLACE_UNK'  ] = PdsTemplate.REPLACE_UNK
