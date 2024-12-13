@@ -148,9 +148,11 @@ class _PdsBlock(object):
             try:
                 return eval(expression, state.global_dict, state.local_dicts[-1])
 
+            # Do not pass go, do not collect $200
             except TemplateAbort:
                 raise
 
+            # This handles a call to $RAISE()
             except _RaisedException as err:
                 suffix = f' at {self.filepath.name}:{line}'
                 if state.raise_exceptions:
@@ -239,13 +241,10 @@ class _PdsBlock(object):
 
     def execute(self, state):
         """Evaluate this block of label text, using the dictionaries to fill in the
-        blanks. The content is returned as a deque of strings, to be joined upon
-        completion to create the label content.
+        blanks.
 
         This base class method implements the default procedure, which is to execute the
         body plus any sub-blocks exactly once. It is overridden for $FOR and $IF blocks.
-        The execute methods write all of their error messages to the logger rather than
-        raising exceptions.
 
         Parameters:
             state (_LabelState): State describing the label being generated.
@@ -268,11 +267,11 @@ class _PdsBlock(object):
             line (int): Line number in template content, starting from 1.
 
         Returns:
-            str: If template.include_more_error_info, this is the selected line of the
+            str: If template._include_more_error_info, this is the selected line of the
                 template's content; otherwise, an empty string.
         """
 
-        if not self.template.include_more_error_info:
+        if not self.template._include_more_error_info:
             return ''
 
         recs = self.template.content.split('\n')
@@ -352,11 +351,13 @@ class _PdsBlock(object):
     @staticmethod
     def new_block(sections, template, filepath=None):
         """Construct an _PdsBlock subclass based on a deque of _Section tuples (header,
-        arg, line,  body). Pop as many _Section tuples off the top of the deque as are
-        necessary to complete the block and any of its internal blocks, recursively.
+        arg, line,  body).
+
+        Pop as many _Section tuples off the top of the deque as are necessary to complete
+        the block and any of its internal blocks, recursively.
 
         Parameters:
-            sections (list[_Section]): _Section objects containing template content.
+            sections (deque[_Section]): _Section objects containing template content.
             template (PdsTemplate): The PdsTemplate object..
 
         Returns:
@@ -423,6 +424,13 @@ class _PdsBlock(object):
 
         This eliminates numbers like "1.0000000000000241" and "0.9999999999999865" in the
         label, by suppressing insignificant digits.
+
+        Parameters:
+            value (float): Value to format as a string.
+            upper_e (bool): True to use uppercase "E" in exponential notation.
+
+        Returns:
+            str: Formatted string.
         """
 
         str_value = str(value)
@@ -474,13 +482,27 @@ class _PdsOnceBlock(_PdsBlock):
     PATTERN = re.compile(r'\(' + WORD + r'=([^=].*)\)')
 
     def __init__(self, sections, template, filepath=None):
-        """Define a block to be executed once. Pop the associated section off the stack.
+        """Define a block to be executed once. Pop the associated sections off the stack.
 
-        Note that the name of a properly matched $END_IF header is changed internally to
-        $ONCE-$END_IF during template initialization. Also, the name of a properly matched
-        $END_FOR is changed to $ONCE-$END_FOR during template initialization, and
-        $END_NOTE is changed to $ONCE-$END_NOTE. This code must strip away the $ONCE-
-        prefix.
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
+
+        Note:
+            The name of a properly matched $END_IF header is changed internally to
+            $ONCE-$END_IF during template initialization. Also, the name of a properly
+            matched $END_FOR is changed to $ONCE-$END_FOR during template initialization,
+            and $END_NOTE is changed to $ONCE-$END_NOTE. This code must strip away the
+            $ONCE- prefix.
         """
 
         (header, arg, line, body) = sections.popleft()
@@ -508,9 +530,15 @@ class _PdsOnceBlock(_PdsBlock):
                                 f'{self.filepath.name}:{line}')
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the
-        blanks. The content is returned as a deque of strings, to be joined upon
-        completion to create the label content.
+        """Evaluate this block of $ONCE text unconditionally.
+
+        Use the dictionaries to evaluate any embedded expressions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate upon completion.
         """
 
         results = deque()
@@ -540,8 +568,21 @@ class _PdsNoteBlock(_PdsBlock):
     """A block of text between $NOTE and $END_NOTE, not to be included."""
 
     def __init__(self, sections, template, filepath=None):
-        """Define a block to be executed zero times. Pop the associated section off the
+        """Define a block to be executed zero times. Pop the associated sections off the
         stack.
+
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
         """
 
         (header, arg, line, body) = sections.popleft()
@@ -572,9 +613,15 @@ class _PdsNoteBlock(_PdsBlock):
         sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the
-        blanks. The content is returned as a deque of strings, to be joined upon
-        completion to create the label content.
+        """Ignore this block of $NOTE text.
+
+        Use the dictionaries to evaluate any embedded expressions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate upon completion.
         """
 
         return deque()
@@ -583,8 +630,8 @@ class _PdsNoteBlock(_PdsBlock):
 ################################################
 
 class _PdsForBlock(_PdsBlock):
-    """A block of text preceded by $FOR. It is to be evaluated zero or more times, by
-    iterating through the argument.
+    """A block of text between $FOR and $END_FOR. It is to be evaluated zero or more
+    times, by iterating through the argument.
     """
 
     # These patterns match one, two, or three variable names, followed by "=", to be used
@@ -595,6 +642,23 @@ class _PdsForBlock(_PdsBlock):
     PATTERN3 = re.compile(r'\(' + WORD + ',' + WORD + ',' + WORD + r'=([^=].*)\)')
 
     def __init__(self, sections, template, filepath=None):
+        """Define a block to be executed inside a loop. Pop the associated section off the
+        stack.
+
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
+        """
+
         (header, arg, line, body) = sections.popleft()
         self.header = header
         self.line = line
@@ -640,9 +704,15 @@ class _PdsForBlock(_PdsBlock):
         sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the
-        blanks. The content is returned as a deque of strings, to be joined upon
-        completion.
+        """If the argument evaluates to True, execute this block of label text.
+
+        Use the dictionaries to evaluate any embedded expressions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate upon completion.
         """
 
         iterator = self.evaluate_expression(self.arg, self.line, state)
@@ -666,14 +736,32 @@ class _PdsForBlock(_PdsBlock):
 ################################################
 
 class _PdsIfBlock(_PdsBlock):
-    """A block of text to be included if the argument evaluates to True, either $IF or
-    $ELSE_IF.
+    """A block of text beginning with $IF or $ELSE_IF and continuing to the next $ELSE_IF,
+    $ELSE, or $END_IF.
+
+    Note that subsequent $ELSE_IF sections are handled recursively.
     """
 
     WORD = r' *([A-Za-z_]\w*) *'
     PATTERN = re.compile(r'\(' + WORD + r'=([^=].*)\)')
 
     def __init__(self, sections, template, filepath=None):
+        """A block to be executed conditionally.
+
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
+        """
+
         (header, arg, line, body) = sections.popleft()
         self.header = header
         self.arg = arg
@@ -718,9 +806,16 @@ class _PdsIfBlock(_PdsBlock):
         sections[0] = _Section('$ONCE-' + header, '', line, body)
 
     def execute(self, state):
-        """Evaluate this block of label text, using the dictionaries to fill in the
-        blanks. The content is returned as a deque of strings, to be joined upon
-        completion to be joined upon completion to create the label content.
+        """If the argument evaluates to True, execute this block of label text. Otherwise,
+        continue with the next $ELSE_IF or $ELSE block.
+
+        Use the dictionaries to evaluate any embedded expressions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate upon completion.
         """
 
         status = self.evaluate_expression(self.arg, self.line, state)
@@ -752,6 +847,23 @@ class _PdsIfBlock(_PdsBlock):
 class _PdsElseBlock(_PdsBlock):
 
     def __init__(self, sections, template, filepath=None):
+        """A block to be executed only if all preceding $IF and $ELSE_IF blocks have not
+        executed.
+
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
+        """
+
         (header, arg, line, body) = sections.popleft()
         self.header = header
         self.arg = arg
@@ -777,11 +889,29 @@ class _PdsElseBlock(_PdsBlock):
 ################################################
 
 class _PdsIncludeBlock(_PdsBlock):
-    """A reference to an external file to be included, followed by a standard block of
-    text.
+    """A reference to an external file to be included at this location of the template.
+
+    It is followed by a standard block of text to be executed once.
     """
 
     def __init__(self, sections, template, filepath=None):
+        """A directive to include text from an specified file and then compile and
+        execute it.
+
+        Parameters:
+            sections (deque[_Section]):
+                The remainder of the template's content. This constructor pops as many
+                sections off the top of the deque as are needed to complete this block.
+            template (PdsTemplate):
+                The object being converted into _PdsBlocks.
+            filepath (str or pathlib.Path, optional):
+                The file containing this $ONCE block; usually the file path of `template`
+                but it could be that of an $INCLUDE file.
+
+        Raises:
+            TemplateAbort: Irrecoverable syntax error.
+        """
+
         (header, arg, line, body) = sections.popleft()
         self.header = header
         self.arg = arg
@@ -798,8 +928,16 @@ class _PdsIncludeBlock(_PdsBlock):
                                 f'{self.filepath.name}:{line}')
 
     def execute(self, state):
-        """Include the specified file, followed by the remaining body text. The content is
-        returned as a deque of strings, to be joined upon completion to create the label.
+        """Read, compile, and execute the specified file, followed by the remaining body
+        text.
+
+        Use the dictionaries to evaluate any embedded expressions.
+
+        Parameters:
+            state (_LabelState): State describing the label being generated.
+
+        Returns:
+            deque[str]: Deque of strings to concatenate upon completion.
         """
 
         results = deque()
@@ -835,7 +973,21 @@ class _PdsIncludeBlock(_PdsBlock):
 
     @staticmethod
     def get_content(filename, include_dirs):
-        """The content of the specified include file; exception on failure."""
+        """The content of the specified include file.
+
+        Parameters:
+            filename (str or pathlib.Path): The name or path to the file to include.
+            include_dirs (list[pathlib.Path): Ordered list of directories in which to look
+                for the named file.
+
+        Returns:
+            str: The content of the file as a single string containing "\n" line
+                terminators.
+
+        Raises:
+            FileNotFoundError: If the file is not found.
+            OSError: Any subclass of OSError explaining why the file could not be read.
+        """
 
         # Find the file
         filepath = pathlib.Path(filename)       # Maybe it's a complete path already

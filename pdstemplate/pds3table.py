@@ -166,7 +166,6 @@ class Pds3Table():
 
         # Set globals for access within the template object
         Pds3Table._LATEST_PDS3_TABLE = self
-
         PdsTemplate.define_global('VALIDATE_PDS3_LABEL', VALIDATE_PDS3_LABEL)
         PdsTemplate.define_global('LABEL_VALUE', LABEL_VALUE)
         PdsTemplate.define_global('OLD_LABEL_VALUE', OLD_LABEL_VALUE)
@@ -459,7 +458,8 @@ class Pds3Table():
 
         Returns:
             list[str]: A list of messages. Messages that begin with "ERROR: " are
-                irrecoverable errors; anything else is a warning.
+                irrecoverable errors; anything else is a warning about something that can
+                be repaired by the preprocessor.
         """
 
         self.assign_to(table)
@@ -495,10 +495,11 @@ class Pds3Table():
             indx = self._table_index[colnum]
             for k in range(1, items):
                 if table.lookup('WIDTH', k+indx) != table.lookup('WIDTH', indx):
-                    messages.append(f'{colname}:{name} items have inconsistent widths')
+                    messages.append(f'ERROR: {colname}:{name} items have inconsistent '
+                                    'widths')
                 if table.lookup('QUOTES', k+indx) != self.table.lookup('QUOTES', indx):
-                    messages.append(f'{colname}:{name} items have inconsistent quote '
-                                    'usage')
+                    messages.append(f'ERROR: {colname}:{name} items have inconsistent '
+                                    'quote usage')
 
             # Optional attributes
             messages += self._check_value('COLUMN_NUMBER', colnum, required=self.numbers)
@@ -558,6 +559,17 @@ class Pds3Table():
             messages.append(f'ERROR: Table contains {table_extras} undefined column'
                             + ('s' if table_extras > 1 else ''))
 
+        # Check duplicated column names
+        if len(self._column_number) != label_columns:
+            for k, name in enumerate(self._column_name):
+                try:
+                    dk = self._column_name[k+1:].index(name)
+                except ValueError:
+                    pass
+                else:
+                    messages.append(f'ERROR: Name {name} is duplicated at columns '
+                                    f'{k} and {k+dk+1}')
+
         return messages
 
     def _check_value(self, name, colnum=0, *, required=False, forbidden=False):
@@ -583,7 +595,7 @@ class Pds3Table():
         if forbidden:
             if old_value is not None:
                 old_fmt = Pds3Table._format(old_value)
-                return [f'{prefix}{name} is forbidden: ({old_fmt})']
+                return [f'ERROR: {prefix}{name} is forbidden: ({old_fmt})']
             return []
 
         if not required and not forbidden and old_value is None:
@@ -903,11 +915,11 @@ class Pds3Table():
                                            before=before, first=first)
             return (new_label, None)
 
-        value = parts[2]
+        value = Pds3Table._eval(parts[2])
         if not self.analyze_only:
             label = parts[0] + parts[1] + replacement + ''.join(parts[3:])
 
-        return (label, Pds3Table._eval(value))
+        return (label, value)
 
     def _insert_value(self, label, name, value, *, after=None, before=None, first=False):
         """Insert a new name=value entry into the label string.

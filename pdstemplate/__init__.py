@@ -152,8 +152,8 @@ class PdsTemplate:
             # pre-processing. Inside _pdsblock.py, this flag tells the logger to print the
             # actual content of the line causing the error, for simpler diagnosis of the
             # problem. DISABLED for now.
-            # self.include_more_error_info = (content != before)
-            self.include_more_error_info = False
+            # self._include_more_error_info = (content != before)
+            self._include_more_error_info = False
 
             # Detect XML if not specified
             if xml is None:
@@ -169,6 +169,7 @@ class PdsTemplate:
             raise
 
         # For managing errors and warnings raised during generate()
+        self._fatal_count = 0
         self._error_count = 0
         self._warning_count = 0
 
@@ -263,10 +264,11 @@ class PdsTemplate:
         except TemplateAbort as err:
             logger.fatal('**** ' + err.message, label_path)
         finally:
-            (fatal, errors, warns, total) = logger.close()
+            (fatals, errors, warns, total) = logger.close()
 
         content = ''.join(results)
-        self._error_count = fatal + errors
+        self._fatal_count = fatals
+        self._error_count = errors
         self._warning_count = warns
 
         # Update the terminator if necessary
@@ -313,9 +315,13 @@ class PdsTemplate:
         content = self.generate(dictionary, label_path, raise_exceptions=raise_exceptions,
                                 hide_warnings=(mode == 'save'),
                                 abort_on_error=(mode != 'save'))
+        fatals = self._fatal_count
         errors = self._error_count
         warns = self._warning_count
         logger = get_logger()
+
+        if fatals and not errors:
+            errors = fatals
 
         # Validation case
         if mode == 'validate':
@@ -324,7 +330,8 @@ class PdsTemplate:
                 logger.error(f'Validation failed with {errors} error{plural}', label_path,
                              force=True)
             elif warns:
-                logger.warn(f'Validation failed with {warns} error{warns}', label_path,
+                plural = 's' if warns > 1 else ''
+                logger.warn(f'Validation failed with {warns} warning{plural}', label_path,
                             force=True)
             else:
                 logger.info('Validation successful', label_path, force=True)
@@ -352,6 +359,11 @@ class PdsTemplate:
         if mode != 'save':
             return (errors, warns)
 
+        # Don't save a file after a fatal error
+        if fatals:
+            logger.error('File save aborted due to prior errors')
+            return (errors, warns)
+
         # Backup existing label if necessary
         exists = label_path.exists()
         if exists and backup:
@@ -366,7 +378,7 @@ class PdsTemplate:
         # Write label
         with label_path.open('wb') as f:
             f.write(content.encode('utf-8'))
-            if not content.endswith(self.terminator):
+            if content and not content.endswith(self.terminator):
                 f.write(self.terminator.encode('utf-8'))
 
         # Log event

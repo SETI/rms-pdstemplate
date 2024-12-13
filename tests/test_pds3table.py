@@ -13,16 +13,22 @@ import tempfile
 import time
 import unittest
 
+import pdslogger
+
 from pdstemplate import PdsTemplate, get_logger, TemplateError
 from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
                                   LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
 from pdstemplate.pds3table import pds3_table_preprocessor
+from pdstemplate.asciitable import AsciiTable
+
 
 class Test_Pds3Table(unittest.TestCase):
 
     def runTest(self):
 
+        # No logging to stdout
         _LOGGER = get_logger()
+        _LOGGER.add_handler(pdslogger.NULL_HANDLER)
 
         root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
         test_file_dir = root_dir / 'test_files'
@@ -158,7 +164,6 @@ class Test_Pds3Table(unittest.TestCase):
                 written = f.read().decode('latin-1')
             with (test_file_dir / 'COVIMS_0094_index_test1.txt').open('rb') as f:
                 answer = f.read().decode('latin-1')
-
             self.assertEqual(written, answer)
 
             # Repair does nothing
@@ -232,9 +237,21 @@ class Test_Pds3Table(unittest.TestCase):
                                preprocess=pds3_table_preprocessor,
                                crlf=True, upper_e=True)
 
+        # Repeated column names
+        path = test_file_dir / 'repeated_column_names.lbl'
+        label = Pds3Table(path)
+        _ = AsciiTable(test_file_dir / 'GO_0023_sky_summary.tab')
+        warnings = label._validation_warnings()
+        self.assertEqual(warnings,
+                ['ERROR: Name FILE_SPECIFICATION_NAME is duplicated at columns 2 and 3',
+                 'ERROR: Name MAXIMUM_DECLINATION is duplicated at columns 4 and 5',
+                 'ERROR: Name MAXIMUM_DECLINATION is duplicated at columns 5 and 6'])
+
         # Reset to starting point
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_PDS3_LABEL']
         del PdsTemplate._PREDEFINED_FUNCTIONS['VALIDATE_PDS3_LABEL']
         del PdsTemplate._PREDEFINED_FUNCTIONS['LABEL_VALUE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_TABLE']
         del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
+
+        _LOGGER.remove_all_handlers()

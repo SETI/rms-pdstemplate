@@ -13,12 +13,13 @@ import unittest
 import pdslogger
 from pdstemplate import PdsTemplate, TemplateError, _utils
 
-PdsTemplate.set_log_level(pdslogger.FATAL + 1)  # suppress logging to stdout
-
 
 class Test_Substitutions(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         T = PdsTemplate('t.xml',
                         content='<instrument_id>$INSTRUMENT_ID$</instrument_id>\n')
@@ -48,6 +49,7 @@ class Test_Substitutions(unittest.TestCase):
         V = '<gt>&gt;</gt>\n'
         self.assertEqual(T.generate(D), V)
 
+        PdsTemplate.get_logger().remove_all_handlers()
 
 LOREM_IPSUM = (
     "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "
@@ -93,6 +95,9 @@ The frumious Bandersnatch!"
 class Test_Predefined(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         # BASENAME
         T = PdsTemplate('t.xml', content='<a>$BASENAME(path)$</a>\n')
@@ -398,10 +403,15 @@ class Test_Predefined(unittest.TestCase):
         V = '<a>c.txt</a>\n'
         self.assertEqual(T.generate(D), V)
 
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_Headers(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         # $FOR and $END_FOR
         T = PdsTemplate('t.xml', content="""<a></a>
@@ -691,10 +701,15 @@ class Test_Headers(unittest.TestCase):
             <index>3</index>\n"""
         self.assertEqual(T.generate(D), V)
 
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_Terminators(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         D = {'A': 1, 'B': 2, 'C': 3}
 
@@ -716,10 +731,15 @@ class Test_Terminators(unittest.TestCase):
             T = PdsTemplate('t.xml', content=content, crlf=True)
             self.assertEqual(T.generate(D), value_crlf)
 
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_Misc(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         # Supplying content as a list
         T = PdsTemplate('t.xml', content=[
@@ -839,10 +859,15 @@ class Test_Misc(unittest.TestCase):
         V = '2\n'
         self.assertEqual(T.generate(D), V)
 
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_Files(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         update_expected = False
 
@@ -991,18 +1016,23 @@ est laborum.
             self.assertEqual(result, 'value1\nvalue2\n')
 
             # Missing end terminator
-            T = PdsTemplate('t.xml', content='$NOTE: HI\n', crlf=True)
-            answer = T.write({}, test_output_file)
+            T = PdsTemplate('t.xml', content='test', crlf=True)
+            T.write({}, test_output_file)
 
             with open(test_output_file, 'rb') as fp:
                 result = fp.read()
             result = result.decode('utf-8')
-            self.assertEqual(result, '\r\n')
+            self.assertEqual(result, 'test\r\n')
+
+        PdsTemplate.get_logger().remove_all_handlers()
 
 
 class Test_Preprocessor(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         def hello(filepath, content, name=''):
             return 'Hello' + (' ' if name else '') + name.capitalize() + '!\n' + content
@@ -1038,10 +1068,16 @@ class Test_Preprocessor(unittest.TestCase):
         T = PdsTemplate('t.xml', content='text\n', preprocess=[uppercase, h2])
         self.assertEqual(T.generate({}), 'Hello Rob!\nTEXT\n')
 
+        # No logging to stdout
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_include_dirs(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         try:
             _utils._INCLUDE_DIRS = None
@@ -1061,10 +1097,15 @@ class Test_include_dirs(unittest.TestCase):
             if original is not None:
                 os.environ['PDSTEMPLATE_INCLUDES'] = original
 
+        PdsTemplate.get_logger().remove_all_handlers()
+
 
 class Test_Includes(unittest.TestCase):
 
     def runTest(self):
+
+        # No logging to stdout
+        PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         root_dir = pathlib.Path(sys.modules['pdstemplate'].__file__).parent.parent
         test_file_dir = root_dir / 'test_files'
@@ -1080,3 +1121,5 @@ class Test_Includes(unittest.TestCase):
         label = T.generate({'isvis': False}, 'temp.lbl')
         answer = (test_file_dir / 'include_test_label_ir.txt').read_bytes().decode('utf-8')
         self.assertEqual(label, answer)
+
+        PdsTemplate.get_logger().remove_all_handlers()
