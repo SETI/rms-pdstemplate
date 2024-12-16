@@ -121,7 +121,7 @@ def set_log_format(**kwargs):
 # Line terminator utility
 ##########################################################################################
 
-def _check_terminators(filepath, content, crlf=None):
+def _check_terminators(filepath, content='', crlf=None):
     """Raise an exception if the given file content is not consistent with the intended
     line terminator.
 
@@ -138,7 +138,14 @@ def _check_terminators(filepath, content, crlf=None):
 
     Returns:
         bool: True if the terminators are <CR><LF>, False otherwise.
+
+    Raises:
+        TemplateError: If an incorrect line terminator was found.
     """
+
+    filepath = pathlib.Path(filepath)
+    if not content:
+        content = filepath.read_bytes()
 
     # Define <CR><LF> terminator depending on types; split content into a list
     if isinstance(content, list):
@@ -160,12 +167,12 @@ def _check_terminators(filepath, content, crlf=None):
     crlf = bool(crlf)   # make sure it's really boolean
     if crlf != content[0].endswith(crlf_chars):
         name = '<CR><LF>' if crlf else '<LF>'
-        raise TemplateError(f'line terminator is not {name}', filepath)
+        raise TemplateError(f'Line terminator is not {name}', filepath)
 
     # Validate the line terminator in every record
     for recno, record in enumerate(content):
         if crlf != record.endswith(crlf_chars):
-            raise TemplateError(f'inconsistent line terminator at line {recno+1}',
+            raise TemplateError(f'Inconsistent line terminator at line {recno+1}',
                                 filepath)
 
     return crlf

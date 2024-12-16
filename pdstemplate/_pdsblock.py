@@ -999,9 +999,6 @@ class _PdsIncludeBlock(_PdsBlock):
                     break
 
         # Read the file or force a FileNotFoundError
-        with filepath.open('r') as f:           # Convert <CR><LF> to <LF>
-            content = f.read()
-
-        return content
+        return filepath.read_text()             # Convert <CR><LF> to <LF>
 
 ##########################################################################################

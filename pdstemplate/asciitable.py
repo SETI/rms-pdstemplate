@@ -10,7 +10,7 @@ along with the AsciiTable class that supports them.
 import pathlib
 import re
 from . import PdsTemplate
-from ._utils import get_logger, TemplateError, _check_terminators
+from ._utils import get_logger, TemplateError, TemplateAbort, _check_terminators
 
 
 class AsciiTable():
@@ -55,11 +55,11 @@ class AsciiTable():
         self.filepath = pathlib.Path(filepath)
 
         if separator not in ',;|\t':
-            raise ValueError('disallowed separator: ' + repr(separator))
+            raise ValueError('Disallowed separator: ' + repr(separator))
         self.separator = separator.encode('latin-1')
 
         if escape not in ('"', '\\', ''):
-            raise ValueError('disallowed escape character: ' + repr(escape))
+            raise ValueError('Disallowed escape character: ' + repr(escape))
         self.escape = escape.encode('latin-1')
 
         # Read the file if necessary
@@ -68,7 +68,11 @@ class AsciiTable():
                 records = f.readlines()
 
         # Identify the line terminator and validate
-        self.crlf = _check_terminators(filepath, records, crlf=crlf)
+        try:
+            self.crlf = _check_terminators(filepath, records, crlf=crlf)
+        except TemplateError as err:
+            raise TemplateAbort(err.message, self.filepath)
+
         self._terminators = 2 if self.crlf else 1
 
         # Intialize internals
@@ -102,7 +106,7 @@ class AsciiTable():
             # If the record was valid, every even-numbered item will be blank and also
             # the second-to last item
             if not all(p == b'' for p in parts[::2]) or parts[-2] != b'':
-                raise TemplateError(f'invalid use of quotes in record {recno+1}')
+                raise TemplateAbort(f'Invalid use of quotes in record {recno+1}')
 
             columns = parts[1:-2:2]
 
@@ -115,7 +119,7 @@ class AsciiTable():
                 self._values_ = [[] for _ in columns]
 
             if len(self._bvalues) != len(columns):
-                raise TemplateError('inconsistent column count')
+                raise TemplateAbort('Inconsistent column count')
 
             for k, value in enumerate(columns):
                 self._bvalues[k].append(value)
@@ -135,7 +139,7 @@ class AsciiTable():
             # Check that all widths are consistent
             for recno, value in enumerate(column):
                 if len(value) != width:
-                    raise TemplateError(f'inconsistent width in record {recno+1}, '
+                    raise TemplateAbort(f'Inconsistent width in record {recno+1}, '
                                         f'column {colno+1}')
 
             # Infer the common format within this column
@@ -197,30 +201,44 @@ class AsciiTable():
         else:
             offset = 0
 
-        types = {fmt[0] for fmt in formats}
-        joined = ''.join(types)
+        # Get a string representation of all the cell types
+        types = list({fmt[0] for fmt in formats})
+        types.sort()
+        types = ''.join(types)
         length = max(fmt[2] for fmt in formats)     # use longest length
 
         # Handle "E" and "F", giving preference to "F", using longest precision
-        if joined in {'E', 'F', 'EF', 'FE'}:
+        if types in {'E', 'F', 'EF'}:
             prec = max(fmt[3] for fmt in formats)
             return ('F' if 'F' in types else 'E', 0, length, prec)
 
-        # Handle "D" and "T"
-        if joined in {'D', 'T', 'DT', 'TD'}:
+        # Handle "I" combined with "E" and/or "F"
+        if types in {'EI', 'FI', 'EFI'}:
+            prec = max(fmt[3] for fmt in formats if fmt[0] != 'I')
+            return ('F' if 'F' in types else 'E', 0, length, prec)
+
+        # Handle "D" and/or "T", possibly combined with "A"
+        if types in {'D', 'T', 'DT'}:
             return ('T' if 'T' in types else 'D', offset, length, pds4_date_time(formats))
+
+        # Handle "A" combined with "D" and/or "T"
+        if types in {'AD', 'AT', 'ADT'}:
+            subset = {fmt for fmt in formats if fmt[0] != 'A'}
+            return ('T' if 'T' in types else 'D', offset, length, pds4_date_time(subset))
 
         # Same format but different lengths
         if len(types) == 1:
-            return (joined, offset, length)
+            return (types[0], offset, length)
 
-        raise TemplateError(f'illegal mixture of types in column {colno+1}')
+        raise TemplateAbort(f'Illegal mixture of types in column {colno+1} at '
+                            f'start byte {self._start_bytes[-1]}',
+                            self.filepath)
 
     # Regular expressions for numeric cell values
     _INTEGER = re.compile(rb' *[+-]?\d+')
     _EFLOAT = re.compile(rb' *[+-]?(\d*)\.?(\d*)([eE])[+-]?\d{1,3}')
     _FFLOAT = re.compile(rb' *[+-]?\d*\.(\d*)')
-    _DATE = re.compile(rb' *\d\d\d\d-(\d\d-\d\d|\d\d\d)(T\d\d:\d\d:\d\d(?:|\.\d*)Z?)?')
+    _DATE = re.compile(rb' *\d\d\d\d-(\d\d-\d\d|\d\d\d)(T\d\d:\d\d:\d\d(?:|\.\d*)Z?)? *')
 
     def _cell_format(self, value):
         """Returns cell format information for a single table cell value.
@@ -241,9 +259,17 @@ class AsciiTable():
 
         stripped = value.rstrip()   # strip trailing blankcs
 
-        # Quoted string case
-        if value.startswith(b'"'):
-            return ('A', 1, len(stripped) - 2)
+        # Date checker, which might be inside quotes
+        def _date_fmt(string, offset):
+            if match := AsciiTable._DATE.fullmatch(string):
+                prec = 'YD' if len(match.group(1)) == 3 else 'YMD'
+                if match.group(2):
+                    prec += 'T'
+                    if match.group(2).endswith(b'Z'):
+                        prec += 'Z'
+                return ('T' if 'T' in prec else 'D', offset, len(string), prec)
+
+            return None
 
         # Integer
         if AsciiTable._INTEGER.fullmatch(stripped):
@@ -258,15 +284,23 @@ class AsciiTable():
             return ('F', 0, len(stripped), prec)
 
         # Date
-        if match := AsciiTable._DATE.fullmatch(stripped):
-            prec = 'YD' if len(match.group(1)) == 3 else 'YMD'
-            if match.group(2):
-                prec += 'T'
-                if match.group(2).endswith(b'Z'):
-                    prec += 'Z'
-            return ('T' if 'T' in prec else 'D', 0, len(stripped), prec)
+        fmt = _date_fmt(stripped, 0)
+        if fmt is not None:
+            return fmt
 
-        # Anything else is a full-length string
+        # Quoted string case
+        if value.startswith(b'"') and value.endswith(b'"'):
+            string = value[1:-1]
+
+            # Could still be a date
+            fmt = _date_fmt(string, 1)
+            if fmt is not None:
+                return fmt
+
+            # Otherwise, it's a quoted string
+            return ('A', 1, len(string))
+
+        # Anything else is an un-quoted, full-length string
         return ('A', 0, len(value))
 
     ######################################################################################
@@ -510,11 +544,15 @@ def TABLE_VALUE(name, column=0):
     Returns:
         (str, int, float, or bool): The value of the specified parameter as inferred from
             the ASCII table.
-        """
+
+    Raises:
+        TemplateAbort: If no ASCII Table was successfully analyzed.
+        TemplateError: A wrapper for any other exception.
+    """
 
     table = AsciiTable._LATEST_ASCII_TABLE
     if not table:
-        raise TemplateError('no ASCII table has been analyzed')
+        raise TemplateAbort('No ASCII table has been analyzed')
 
     try:
         return table.lookup(name, column)

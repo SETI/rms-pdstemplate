@@ -105,17 +105,7 @@ class Test_Pds3Table(unittest.TestCase):
         answer = ['SWATH_WIDTH:DATA_TYPE error: INTEGER -> ASCII_INTEGER',
                   'SWATH_LENGTH:DATA_TYPE error: INTEGER -> ASCII_INTEGER',
                   'IR_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
-                  'VIS_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
-                  'SC_SUN_POSITION_VECTOR:DATA_TYPE error: ASCII_REAL -> ASCII_INTEGER',
-                  'ERROR: SC_SUN_POSITION_VECTOR:NOT_APPLICABLE_CONSTANT value -1.E+32 '
-                  'is incompatible with column type ASCII_INTEGER',
-                  'ERROR: SC_SUN_POSITION_VECTOR:NULL_CONSTANT value 1.E+32 is '
-                  'incompatible with column type ASCII_INTEGER',
-                  'SC_SUN_VELOCITY_VECTOR:DATA_TYPE error: ASCII_REAL -> ASCII_INTEGER',
-                  'ERROR: SC_SUN_VELOCITY_VECTOR:NOT_APPLICABLE_CONSTANT value -1.E+32 '
-                  'is incompatible with column type ASCII_INTEGER',
-                  'ERROR: SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT value 1.E+32 is '
-                  'incompatible with column type ASCII_INTEGER']
+                  'VIS_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL']
         self.assertEqual(warnings, answer)
 
         label = Pds3Table(path, edits=['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT = 0.',
@@ -123,8 +113,8 @@ class Test_Pds3Table(unittest.TestCase):
         warnings = label._validation_warnings()
         self.assertEqual(warnings[:4], answer[:4])
         self.assertEqual(warnings[-2:],
-                         ['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT was inserted: 0.',
-                          'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT was edited: 1e+32 -> 0.'])
+                    ['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT was inserted: 0.',
+                     'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT was edited: 1.E+32 -> 0.'])
 
         self.assertEqual(LABEL_VALUE('MINIMUM_VALUE', 'SC_SUN_POSITION_VECTOR'), 0.)
         self.assertEqual(LABEL_VALUE('MAXIMUM_VALUE', 'SC_SUN_POSITION_VECTOR'), 0.)
@@ -164,6 +154,7 @@ class Test_Pds3Table(unittest.TestCase):
                 written = f.read().decode('latin-1')
             with (test_file_dir / 'COVIMS_0094_index_test1.txt').open('rb') as f:
                 answer = f.read().decode('latin-1')
+            # print(written)
             self.assertEqual(written, answer)
 
             # Repair does nothing

@@ -18,7 +18,6 @@ import pdslogger
 from pdstemplate import PdsTemplate, set_logger
 from pdstemplate.pds3table import pds3_table_preprocessor
 
-
 LOGNAME = 'pds.tablelabel'
 
 # Set up parser
@@ -54,15 +53,25 @@ parser.add_argument('--derived', nargs='*', type=str,
                          'and DERIVED_MAXIMUM attributes. Use "float" to include these '
                          'attributes for all floating-point columns.')
 
-parser.add_argument('--edit', '-e', nargs='*', type=str,
+parser.add_argument('--edit', nargs='*', type=str,
                     help='One or more expressions of the form "column:name=value", '
                          'which will be used to insert or replace values currently in '
                          'the label.')
+
+parser.add_argument('--real', nargs='*', type=str,
+                    help='One or more COLUMN names that should be identified as '
+                         'ASCII_REAL even if every value in the table is an integer.')
 
 parser.add_argument('--dict', '-d', nargs='*', type=str,
                     help='One or more keyword definitions of the form "name=value", '
                          'which will be used when the label is generated. Each value '
                          'must be an integer, float, or quoted string.')
+
+parser.add_argument('-e', dest='upper_e', action='store_false', default=True,
+                    help='Format values involving an exponential using lower case "e"')
+
+parser.add_argument('-E', dest='upper_e', action='store_true',
+                    help='Format values involving an exponential using upper case "E"')
 
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--validate', '-v',
@@ -112,6 +121,7 @@ kwargs = {
     'minmax'  : args.minmax or [],
     'derived' : args.derived or [],
     'edits'   : args.edit or [],
+    'reals'   : args.real or [],
     'validate': True,
 }
 
@@ -135,7 +145,7 @@ if not args.quiet:
 # Intepret the template if provided
 template = None
 if args.template:
-    template = PdsTemplate(args.template, crlf=True,
+    template = PdsTemplate(args.template, crlf=True, upper_e=args.upper_e,
                            preprocess=pds3_table_preprocessor, kwargs=kwargs)
     if len(paths) > 1:
         logger.blankline()
@@ -153,7 +163,7 @@ for item in args.dict or []:
 # Process each path...
 errors = 0
 warnings = 0
-for path in paths:
+for k, path in enumerate(paths):
 
     # Skip existing files for task == "create"
     if args.task == 'create' and path.exists():
@@ -164,7 +174,7 @@ for path in paths:
 
     # If there's not a default template, each label is its own template
     if not args.template:
-        template = PdsTemplate(path, crlf=True, upper_e=True,
+        template = PdsTemplate(path, crlf=True, upper_e=args.upper_e,
                                preprocess=pds3_table_preprocessor, kwargs=kwargs)
 
     # Save a log file for each path if necessary
@@ -181,8 +191,7 @@ for path in paths:
         if handler:
             logger.remove_handler(handler)
 
-    if len(paths) > 1:
-        logger.blankline()
+    logger.blankline()
 
     # Keep track of errors and warnings
     errors += status[0]

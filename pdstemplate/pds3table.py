@@ -35,7 +35,7 @@ class Pds3Table():
 
     def __init__(self, labelpath, label='', *, validate=True, analyze_only=False,
                  crlf=None, numbers=False, formats=False, minmax=(), derived=(),
-                 edits=[]):
+                 edits=[], reals=[]):
         """Constructor for a Pds3Table object. It analyzes the content of a PDS3 label or
         template and saves the info for validation or possible repair.
 
@@ -69,16 +69,18 @@ class Pds3Table():
                 Zero or more names of columns for which to include the DERIVED_MINIMUM and
                 DERIVED_MAXIMUM. In addition or as an alternative, use "float" to include
                 these values for all floating-point columns.
-            edits (list[str]), optional):
-                A list of strings of the form "column:name = value", which should be used
-                to insert or replace values currently in the label.
+            edits (str or list[str]), optional):
+                Expressions of the form "column:name = value", which should be used to
+                insert or replace values currently in the label.
+            reals (str, tuple[str], or list[str]), optional):
+                Names of columns that should be treated as ASCII_REAL even if thee column
+                only contains integers.
         """
 
         self.labelpath = pathlib.Path(labelpath)
 
         if not label:
-            with self.labelpath.open('rb') as f:    # binary to preserve terminators
-                label = f.read()
+            label = labelpath.read_bytes()      # binary to preserve terminators
             label = label.decode('latin-1')
 
         # Identify the line terminator and validate it
@@ -95,6 +97,7 @@ class Pds3Table():
         self.formats = formats
         self.minmax = (minmax,) if isinstance(minmax, str) else minmax
         self.derived = (derived,) if isinstance(derived, str) else derived
+        self.reals = (reals,) if isinstance(reals, str) else reals
 
         self._table_values = {}         # parameter name -> value in label or None
         self._column_values = [None]    # list of parameter dicts, one per column
@@ -103,6 +106,7 @@ class Pds3Table():
         self._column_number = {}        # column name -> column number
         self._table_index = {}          # column name or number -> index in the table
         self._extra_items = 0           # cumulative number of ITEMS > 1 in COLUMN objects
+        self._quotes_missing = [None]   # column name -> set of parameters missing quotes
 
         # Defined by assign_to()
         self.table = None               # AsciiTable to which this label refers
@@ -113,6 +117,7 @@ class Pds3Table():
         # column number without subtracting one.
 
         # Pre-process the edits
+        edits = [edits] if isinstance(edits, str) else edits
         self._edit_dict = {}            # [colname][parname] -> replacement value
         self._edited_values = {}        # [colname][parname] -> original value or None
         for edit in edits:
@@ -131,10 +136,10 @@ class Pds3Table():
         # parts[4] = remainder of label
         parts = Pds3Table._OBJECT_TABLE_REGEX.split(label)
         if len(parts) == 1:
-            raise TemplateError('Template does not contain a PDS3 TABLE object',
+            raise TemplateAbort('Template does not contain a PDS3 TABLE object',
                                 self.labelpath)
         if len(parts) > 5:
-            raise TemplateError('Template contains multiple PDS3 TABLE objects',
+            raise TemplateAbort('Template contains multiple PDS3 TABLE objects',
                                 self.labelpath)
 
         # Process the table interior
@@ -219,6 +224,12 @@ class Pds3Table():
         self._column_values[-1]['NAME'] = name
         self._column_name.append(name or str(colnum))
         self._column_number[name] = colnum
+
+        # Identify parameters with missing quotes
+        self._quotes_missing.append(set())
+        fmt = Pds3Table._get_value(label, 'FORMAT', raw=True)
+        if fmt and '.' in fmt and not fmt.startswith('"'):
+            self._quotes_missing.add('FORMAT')
 
         # Edit the label if necessary
         edits = self._edit_dict.get(name, {})
@@ -339,7 +350,7 @@ class Pds3Table():
 
         table = table or _latest_ascii_table()
         if not table:
-            raise TemplateError('No ASCII table has been analyzed for label',
+            raise TemplateAbort('No ASCII table has been analyzed for label',
                                 self.labelpath)
 
         if table is not self.table:
@@ -465,10 +476,16 @@ class Pds3Table():
         self.assign_to(table)
         table = self.table
         if not table:
-            raise TemplateError('No ASCII table has been analyzed for label',
+            raise TemplateAbort('No ASCII table has been analyzed for label',
                                 self.labelpath)
 
         messages = []       # accumulated list of warnings
+
+        # Check <CR><LF> in original file
+        try:
+            _check_terminators(self.labelpath, crlf=True)
+        except TemplateError as err:
+            messages.append(err.message)
 
         # Required top-level attributes
         for name in ['RECORD_TYPE', 'RECORD_BYTES', 'FILE_RECORDS', 'INTERCHANGE_FORMAT',
@@ -482,15 +499,28 @@ class Pds3Table():
             colname = self._column_name[colnum]
             data_type = self.lookup('DATA_TYPE', colnum)
 
+            # Direct edits
+            edited_names = set(self._edited_values.get(colname, {}).keys())
+            for name, old_value in self._edited_values.get(colname, {}).items():
+                new_fmt = self._edit_dict[colname][name]
+                if old_value is None:
+                    messages.append(f'{colname}:{name} was inserted: {new_fmt}')
+                else:
+                    old_fmt = Pds3Table._format(old_value)
+                    messages.append(f'{colname}:{name} was edited: '
+                                    f'{old_fmt} -> {new_fmt}')
+
             # Required attributes
             for name in ['NAME', 'DATA_TYPE', 'START_BYTE', 'BYTES']:
-                messages += self._check_value(name, colnum, required=True)
+                if name not in edited_names:
+                    messages += self._check_value(name, colnum, required=True)
 
             # Tests for multiple ITEMS
             items = self._column_items[colnum]
             for name in ['ITEM_BYTES', 'ITEM_OFFSET']:
-                messages += self._check_value(name, colnum, required=(items > 1),
-                                              forbidden=(items == 1))
+                if name not in edited_names:
+                    messages += self._check_value(name, colnum, required=(items > 1),
+                                                  forbidden=(items == 1))
 
             indx = self._table_index[colnum]
             for k in range(1, items):
@@ -503,16 +533,15 @@ class Pds3Table():
 
             # Optional attributes
             messages += self._check_value('COLUMN_NUMBER', colnum, required=self.numbers)
-            messages += self._check_value('FORMAT', colnum, required=self.formats)
 
-            # Direct edits
-            for name, old_value in self._edited_values.get(colname, {}).items():
-                new_value = self._edit_dict[colname][name]
-                if old_value is None:
-                    messages.append(f'{colname}:{name} was inserted: {new_value}')
-                else:
-                    messages.append(f'{colname}:{name} was edited: '
-                                    f'{old_value} -> {new_value}')
+            name = 'FORMAT'
+            if name not in edited_names:
+                fmt_messages = self._check_value('FORMAT', colnum, required=self.formats)
+                if fmt_messages:
+                    messages += fmt_messages
+                elif 'FORMAT' in self._quotes_missing[colnum]:
+                    value = self.lookup('FORMAT', colnum)
+                    return [f'{colname}:FORMAT error: {value} -> "{value}"']
 
             # Minima/maxima
             required = ((colname in self.minmax)
@@ -541,7 +570,7 @@ class Pds3Table():
                     continue
                 if isinstance(value, int) and 'INT' in data_type:
                     continue
-                if isinstance(value, str) and 'CHAR' in data_type:
+                if isinstance(value, str) and 'CHAR' in data_type or data_type == 'TIME':
                     continue
 
                 valfmt = Pds3Table._format(value)
@@ -603,15 +632,13 @@ class Pds3Table():
 
         # Get the new value
         new_value = self.lookup(name, colnum)
-
         if old_value == new_value:
             return []
 
-        new_fmt = Pds3Table._format(new_value)
+        new_fmt = Pds3Table._format(new_value)      # deal with quoting mismatch
         old_fmt = Pds3Table._format(old_value)
-        if old_fmt == new_fmt:      # occurs when comparing strings with/without quotes
-            old_fmt = old_value
-            new_fmt = new_value
+        if old_fmt == new_fmt:
+            return []
 
         return [f'{prefix}{name} error: {old_fmt} -> {new_fmt}']
 
@@ -668,8 +695,10 @@ class Pds3Table():
 
         if not column:
             colnum = 0
+            colname = ''
         else:
             colnum = self._column_number[column] if isinstance(column, str) else column
+            colname = self._column_name[colnum]
 
         indx = self._table_index[colnum] if colnum else None
         match name:
@@ -709,11 +738,17 @@ class Pds3Table():
             case 'COLUMNS':
                 return self._columns_carefully()
             case 'DATA_TYPE':
-                # Override derived DATA_TYPE if every value in the table is invalid
-                old_value = self._column_values[colnum]['DATA_TYPE']
-                if old_value is not None and len(self._unique_valids(colnum)) == 0:
-                    return old_value
-                return self.table.lookup('PDS3_DATA_TYPE', indx)
+                data_type = self.table.lookup('PDS3_DATA_TYPE', indx)
+                if data_type == 'ASCII_INTEGER':
+                    # Override ASCII INTEGERS if there's evidence the intent is REAL
+                    if (colname in self.reals
+                        or self._constant_type(colnum) == 'ASCII_REAL'):
+                        return 'ASCII_REAL'
+                # Override the derived FORMAT if every value in the table is invalid
+                old_type = self._column_values[colnum]['DATA_TYPE']
+                if old_type is not None and len(self._unique_valids(colnum)) == 0:
+                    return old_type
+                return data_type
             case 'START_BYTE':
                 return (self.table.lookup('START_BYTE', indx)
                         + self.table.lookup('QUOTES', indx))
@@ -731,16 +766,23 @@ class Pds3Table():
                                    - self.table.lookup('START_BYTE', indx))
                     return (items-1) * item_offset + item_bytes
             case 'FORMAT':
+                fmt = self.table.lookup('PDS3_FORMAT', indx)
+                # Force "I" to "F" if necessary
+                if fmt[0] == 'I':
+                    # Override ASCII INTEGERS if there's evidence the intent is REAL
+                    if (colname in self.reals
+                        or self._constant_type(colnum) == 'ASCII_REAL'):
+                        return 'F' + str(self.table.lookup('BYTES', indx)) + '.0'
                 # Override the derived FORMAT if every value in the table is invalid
-                old_value = self._column_values[colnum]['FORMAT']
-                if old_value is not None and len(self._unique_valids(colnum)) == 0:
-                    return old_value
-                return self.table.lookup('PDS3_FORMAT', indx)
+                old_fmt = self._column_values[colnum]['FORMAT']
+                if old_fmt is not None and len(self._unique_valids(colnum)) == 0:
+                    return old_fmt
+                return fmt
             case ('MINIMUM_VALUE' | 'MAXIMUM_VALUE' | 'DERIVED_MINIMUM' |
                   'DERIVED_MAXIMUM'):
                 unique = self._unique_valids(colnum) or self._unique_values(colnum)
                 new_value = min(unique) if 'MINIMUM' in name else max(unique)
-                if 'DERIVED' not in name or self._is_a_constant(colnum, new_value):
+                if 'DERIVED' not in name or self._equals_a_constant(colnum, new_value):
                     return new_value
                 scaling = self._column_values[colnum].get('SCALING_FACTOR', 1) or 1
                 offset = self._column_values[colnum].get('OFFSET', 0) or 0
@@ -805,7 +847,7 @@ class Pds3Table():
 
         return unique
 
-    def _is_a_constant(self, colnum, value):
+    def _equals_a_constant(self, colnum, value):
         """True if the given value matches one of the constants in the specified column.
         """
 
@@ -816,6 +858,31 @@ class Pds3Table():
                 return False
 
         return True
+
+    def _constant_type(self, colnum):
+        """The type of the constants for this column, one of ASCII_INTEGER, ASCII_REAL, or
+        CHARACTER. None if there are no constants or if constants are inconsistent.
+        """
+
+        types = set()
+        for name in ['INVALID_CONSTANT', 'MISSING_CONSTANT',
+                     'NOT_APPLICABLE_CONSTANT', 'NULL_CONSTANT', 'UNKNOWN_CONSTANT',
+                     'VALID_MINIMUM', 'VALID_MAXIMUM']:
+            value = self.lookup(name, colnum)
+            if value is None:
+                continue
+
+            if isinstance(value, float):
+                types.add('ASCII_REAL')
+            elif isinstance(value, int):
+                types.add('ASCII_INTEGER')
+            else:
+                types.add('CHARACTER')
+
+        if len(types) == 1:
+            return list(types)[0]
+
+        return None
 
     def _columns_carefully(self):
         """Careful tally of the correct number of COLUMN objects, allowing for a mismatch
@@ -906,6 +973,7 @@ class Pds3Table():
         # Split by the name=value substring
         parts = re.split(r'(?<!\S)(' + name + r' *= *)([^\r\n]*)', label)
             # If a match is found, this will be a list [before, "<name> = ", value, after]
+            # where `value` includes any trailing blanks and/or a comment
 
         if len(parts) == 1:     # if not found
             if not required:
@@ -915,9 +983,14 @@ class Pds3Table():
                                            before=before, first=first)
             return (new_label, None)
 
+        # Split trailing blanks and an optional comment
+        subparts = parts[2].partition('/*')
+        value = subparts[0].rstrip()
+        tail = (len(subparts[0]) - len(value)) * ' ' + subparts[1] + subparts[2]
+
         value = Pds3Table._eval(parts[2])
         if not self.analyze_only:
-            label = parts[0] + parts[1] + replacement + ''.join(parts[3:])
+            label = ''.join(parts[:2]) + replacement + tail + ''.join(parts[3:])
 
         return (label, value)
 
@@ -975,12 +1048,13 @@ class Pds3Table():
         return label + new_line
 
     @staticmethod
-    def _get_value(label, name):
+    def _get_value(label, name, raw=False):
         """The value of the named parameter within the label.
 
         Parameters:
             label (str): PDS3 label string.
             name (str): PDS3 parameter name.
+            raw (bool, optional): True for a "raw" value without evaluation.
 
         Returns:
             str or None: The string value of the parameter if present; None otherwise.
@@ -991,7 +1065,11 @@ class Pds3Table():
         if not matches:
             return None
 
-        return Pds3Table._eval(matches[0].rstrip())
+        value = matches[0].partition('/*')[0].rstrip()
+        if raw:
+            return value
+
+        return Pds3Table._eval(value)
 
     _UNQUOTED_OK = re.compile(r'[A-Za-z]\w*')
 
@@ -1007,8 +1085,7 @@ class Pds3Table():
 
         if isinstance(value, str):
             value = value.strip()
-            if (value.startswith('"') and value.endswith('"')
-                and Pds3Table._UNQUOTED_OK.fullmatch(value[1:-1])):
+            if value.startswith('"') and value.endswith('"'):
                 return value[1:-1]
 
             try:
@@ -1054,7 +1131,7 @@ class Pds3Table():
 ##########################################################################################
 
 def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
-                            formats=False, minmax=(), derived=(), edits=[]):
+                            formats=False, minmax=(), derived=(), edits=[], reals=[]):
     """Update the PDS3 label or template for an ASCII table, replacing given values with
     those to be derived from an ASCII table.
 
@@ -1086,6 +1163,9 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
         edits (list[str]), optional):
             A list of strings of the form "column:name = value", which should be used to
             insert or replace values currently in the label.
+        reals (str, tuple[str], or list[str]), optional):
+            Names of columns that should be treated as ASCII_REAL even if thee column only
+            contains integers.
 
     Returns:
         str: The revised content for the template.
@@ -1094,7 +1174,8 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
     logger = get_logger()
     logger.debug('PDS3 table preprocessor', labelpath)
     pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
-                           formats=formats, minmax=minmax, derived=derived, edits=edits)
+                           formats=formats, minmax=minmax, derived=derived, edits=edits,
+                           reals=reals)
 
     return pds3_label.content
 

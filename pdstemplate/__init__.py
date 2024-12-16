@@ -107,9 +107,7 @@ class PdsTemplate:
             # Read the template if necessary; use binary to preserve line terminators
             if not content:
                 logger.debug('Reading template', self.template_path)
-                with self.template_path.open('rb') as f:
-                    content = f.read()
-                content = content.decode('utf-8')
+                content = self.template_path.read_bytes().decode('utf-8')
 
             # Check the line terminators
             if crlf is None:
@@ -342,9 +340,7 @@ class PdsTemplate:
                 plural = 's' if errors > 1 else ''
                 logger.warn(f'Repair failed with {errors} error{plural}', label_path)
             elif label_path.exists():
-                with label_path.open('rb') as f:
-                    old_content = f.read()
-                old_content = old_content.decode('utf-8')
+                old_content = label_path.read_bytes().decode('utf-8')
                 if old_content == content:
                     logger.info('Repair unnecessary; content is unchanged', label_path)
                 else:
