@@ -3,7 +3,7 @@ flake8
 myst-parser
 pytest
 rms-julian
-rms-pdslogger
+rms-pdslogger>=2.0.0
 sphinx
 sphinxcontrib-napoleon
 sphinx-rtd-theme

@@ -1,0 +1,15 @@
+PDS_VERSION_ID          = PDS3
+INSTRUMENT_ID           = "VIMS"
+$INCLUDE('include_vis.lbl' if isvis else 'include_ir.lbl')
+
+OBJECT                  = INDEX_TABLE
+  INDEX_TYPE              = SINGLE
+
+  DESCRIPTION             = "This version of the Cassini VIMS image index has
+...where the lower left corner does not intercept the target body."
+
+$INCLUDE('include_columns.lbl')
+VALUE_OF_X              = $x$
+
+END_OBJECT              = INDEX_TABLE
+END

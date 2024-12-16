@@ -1,0 +1,127 @@
+$ONCE(ANALYZE_TABLE(LABEL_PATH().replace(".lbl",".tab").replace(".LBL",".TAB"), crlf=True))
+PDS_VERSION_ID                  = PDS3
+RECORD_TYPE                     = $LABEL_VALUE("RECORD_TYPE")$
+RECORD_BYTES                    = $LABEL_VALUE("RECORD_BYTES")$
+FILE_RECORDS                    = $LABEL_VALUE("FILE_RECORDS")$
+^SKY_GEOMETRY_TABLE             = "$LABEL_VALUE('TABLE_BASENAME')$"
+
+MISSION_NAME                    = "GALILEO"
+INSTRUMENT_HOST_NAME            = "GALILEO"
+INSTRUMENT_HOST_ID              = "GLL"
+INSTRUMENT_NAME                 = "SOLID STATE IMAGER"
+INSTRUMENT_ID                   = "SSI"
+DATA_SET_ID                     = "GO-J/JSA-SSI-2-REDR-V1.0"
+
+VOLUME_ID                       = "$LABEL_VALUE('FIRST', 'VOLUME_ID')$"
+
+OBJECT                          = SKY_GEOMETRY_TABLE
+  INTERCHANGE_FORMAT            = $LABEL_VALUE("INTERCHANGE_FORMAT")$
+  ROWS                          = $LABEL_VALUE("ROWS")$
+  COLUMNS                       = $LABEL_VALUE("COLUMNS")$
+  ROW_BYTES                     = $LABEL_VALUE("ROW_BYTES")$
+  INDEX_TYPE                    = $'CUMULATIVE' if '0999' in LABEL_PATH() else 'SINGLE'$
+
+  DESCRIPTION                   = "This index describes the sky intercept
+    geometry of the field of view of the instrument. The table contains
+    one row for each image file found on the volume identified by the
+    VOLUME_ID keyword above.
+
+    Occasionally, SPICE pointing information is unavailable for the time at
+    which an image was exposed. When this situation occurs, no row has been
+    added to the file.
+
+    This geometry information has been constructed by uniformly sampling the
+    pixels that comprise each image. Pixels have been sampled on an 8x8 grid,
+    i.e., every 64th pixel. To accommodate pointing uncertainty, the image
+    boundary was expanded on every side by a distance equivalent to 25
+    narrow-angle pixels."
+
+  OBJECT                        = COLUMN
+    NAME                        = VOLUME_ID
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 1)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 1)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 1)$
+    BYTES                       = $LABEL_VALUE("BYTES", 1)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 1))$
+    DESCRIPTION                 = "The volume ID provides a unique identifier
+      for a PDS data volume."
+  END_OBJECT                    = COLUMN
+
+  OBJECT                        = COLUMN
+    NAME                        = FILE_SPECIFICATION_NAME
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 2)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 2)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 2)$
+    BYTES                       = $LABEL_VALUE("BYTES", 2)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 2))$
+    DESCRIPTION                 = "The file specification name provides the
+      full name of a file, including a path name, relative to the root
+      directory of the PDS volume."
+  END_OBJECT                    = COLUMN
+
+  OBJECT                        = COLUMN
+    NAME                        = MINIMUM_RIGHT_ASCENSION
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 3)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 3)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 3)$
+    BYTES                       = $LABEL_VALUE("BYTES", 3)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 3))$
+    UNIT                        = "DEGREES"
+    VALID_MINIMUM               = 0.
+    VALID_MAXIMUM               = 360.
+    NULL_CONSTANT               = -999.
+    DESCRIPTION                 = "This is the minimum value for J2000 right
+      ascension within the field of view sampled by this observation. For
+      fields of view that cross 360 degrees, the tabulated minimum value
+      will be greater than the maximum."
+  END_OBJECT                    = COLUMN
+
+  OBJECT                        = COLUMN
+    NAME                        = MAXIMUM_RIGHT_ASCENSION
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 4)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 4)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 4)$
+    BYTES                       = $LABEL_VALUE("BYTES", 4)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 4))$
+    UNIT                        = "DEGREES"
+    VALID_MINIMUM               = 0.
+    VALID_MAXIMUM               = 360.
+    NULL_CONSTANT               = -999.
+    DESCRIPTION                 = "This is the maximum value for J2000 right
+      ascension within the field of view sampled by this observation. For
+      fields of view that cross 360 degrees, the tabulated minimum value
+      will be greater than the maximum."
+  END_OBJECT                    = COLUMN
+
+  OBJECT                        = COLUMN
+    NAME                        = MINIMUM_DECLINATION
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 5)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 5)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 5)$
+    BYTES                       = $LABEL_VALUE("BYTES", 5)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 5))$
+    UNIT                        = "DEGREES"
+    VALID_MINIMUM               = -90.
+    VALID_MAXIMUM               = 90.
+    NULL_CONSTANT               = -999.
+    DESCRIPTION                 = "This is the minimum value for J2000
+      declination within the field of view sampled by the observation."
+  END_OBJECT                    = COLUMN
+
+  OBJECT                        = COLUMN
+    NAME                        = MAXIMUM_DECLINATION
+    COLUMN_NUMBER               = $LABEL_VALUE("COLUMN_NUMBER", 6)$
+    DATA_TYPE                   = $LABEL_VALUE("DATA_TYPE", 6)$
+    START_BYTE                  = $LABEL_VALUE("START_BYTE", 6)$
+    BYTES                       = $LABEL_VALUE("BYTES", 6)$
+    FORMAT                      = $QUOTE_IF(LABEL_VALUE("FORMAT", 6))$
+    UNIT                        = "DEGREES"
+    VALID_MINIMUM               = -90.
+    VALID_MAXIMUM               = 90.
+    NULL_CONSTANT               = -999.
+    DESCRIPTION                 = "This is the maximum value for J2000
+      declination within the field of view sampled by the observation."
+  END_OBJECT                    = COLUMN
+
+END_OBJECT                      = SKY_GEOMETRY_TABLE
+END
