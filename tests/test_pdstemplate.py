@@ -13,7 +13,7 @@ import unittest
 import pdslogger
 from filecache import FCPath
 
-from pdstemplate import PdsTemplate, TemplateError, utils
+from pdstemplate import PdsTemplate, TemplateError
 
 
 class Test_Substitutions(unittest.TestCase):

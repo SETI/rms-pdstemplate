@@ -2,12 +2,10 @@
 # tests/test_utils.py
 ##########################################################################################
 
-import os
 import unittest
 
 from pdstemplate import TemplateError
 from pdstemplate.utils import _check_terminators
-from pdstemplate import utils
 
 
 class Test_Utils(unittest.TestCase):

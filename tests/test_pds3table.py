@@ -14,7 +14,6 @@ import time
 import unittest
 
 import pdslogger
-from filecache import FCPath
 
 from pdstemplate import PdsTemplate, get_logger, TemplateError
 from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
