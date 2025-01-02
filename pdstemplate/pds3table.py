@@ -1,21 +1,387 @@
 ##########################################################################################
 # pdstemplate/pds3table.py
 ##########################################################################################
-"""PDS Ring-Moon Systems Node, SETI Institute
+"""
+.. _pds3table:
 
-Definition of the pre-processor `pds3_table_preprocessor` and the functions
-`ANALYZE_PDS3_LABEL`, `VALIDATE_PDS3_LABEL`, `LABEL_VALUE`, and `OLD_LABEL_VALUE` for PDS3
-labels that describe an ASCII table.
+#####################
+pdstemplate.pds3table
+#####################
+
+``pds3table`` is a plug-in module to automate the generation and validation of PDS3 labels
+for ASCII tables. It works in concert with the :ref:`asciitable` module, which analyzes
+the content of ASCII table files. It is used by stand-alone program ``tablelabel`` to
+validate and repair existing PDS3 labels as well as to generate new labels; if
+``tablelabel`` meets your needs, you can avoid any programming in Python.
+
+To import::
+
+    import pdstemplate.pds3table
+
+Once imported, the following pre-defined functions become available for use within a
+:class:`PdsTemplate`:
+
+* :meth:`ANALYZE_PDS3_LABEL` analyzes the content of a PDS3 label or template, gathering
+  information about the names and other properties of its TABLE and COLUMN objects. Once
+  it is called, the following functions become available.
+* :meth:`~asciitable.ANALYZE_TABLE` (from :ref:`asciitable`) takes the path to an existing
+  ASCII table and analyzes its content, inferring details about the content and formats of
+  all the columns.
+* :meth:`VALIDATE_PDS3_LABEL` issues a warning message for any errors found in the label
+  or template. Optionally, it can abort the generation of the label if it encounters an
+  irrecoverable incompatibility with the ASCII table.
+* :meth:`LABEL_VALUE` returns correct and valid PDS3 values for many of the attributes of
+  PDS3 TABLE and COLUMN objects, based on its analysis of the table.
+* :meth:`OLD_LABEL_VALUE` returns the current (although possibly incorrect or missing)
+  values for many of the same PDS3 TABLE and COLUMN attributes.
+
+For example, consider a template that contains this content::
+
+    $ONCE(ANALYZE_TABLE(LABEL_PATH().replace('.lbl', '.tab')))
+    $ONCE(ANALYZE_PDS3_LABEL(TEMPLATE_PATH()))
+    ...
+    OBJECT              = TABLE
+      ...
+      ROWS              = $LABEL_VALUE('ROWS')$
+      COLUMNS           = $LABEL_VALUE('COLUMNS')$
+
+      OBJECT            = COLUMN
+        NAME            = FILE_NAME
+        COLUMN_NUMBER   = $LABEL_VALUE("COLUMN_NUMBER", "FILE_NAME")$
+        DATA_TYPE       = $LABEL_VALUE("DATA_TYPE", "FILE_NAME")$
+        START_BYTE      = $LABEL_VALUE("START_BYTE", "FILE_NAME")$
+        BYTES           = $LABEL_VALUE("BYTES", "FILE_NAME")$
+        FORMAT          = $LABEL_VALUE("FORMAT", "FILE_NAME")$
+        MINIMUM_VALUE   = $LABEL_VALUE("MINIMUM_VALUE", "FILE_NAME")$
+        MAXIMUM_VALUE   = $LABEL_VALUE("MAXIMUM_VALUE", "FILE_NAME")$
+        DESCRIPTION     = "Name of file in the directory"
+      END_OBJECT        = COLUMN
+    ...
+
+The initial calls to :meth:`~asciitable.ANALYZE_TABLE` and :meth:`ANALYZE_PDS3_LABEL` are
+embedded inside a :ref:`ONCE` directive because they return no content. The first call
+analyzes the content and structure of the ASCII table, and the second analyzes the
+template. The subsequent calls to :meth:`LABEL_VALUE` fill in the correct values for the
+specified quantities.
+
+Optionally, you could include this as the third line in the template::
+
+    $ONCE(VALIDATE_PDS3_LABEL())
+
+This function logs a warnings and errors for any incorrect TABLE and COLUMN values
+currently in the template.
+
+This module also provides a pre-processor, which can be used to validate or repair an
+exising PDS3 label. The function :meth:`pds3_table_preprocessor`, when used as the
+`preprocess` input to the :meth:`~pdstemplate.PdsTemplate` constructor, transforms an
+existing PDS3 label into a new template by replacing all needed TABLE and COLUMN
+attributes with calls to :meth:`LABEL_VALUE`. The effect is that when the label is
+generated, it is guaranteed to contain correct information where the earlier label might
+have been incorrect. In this case, your program would look something like this::
+
+    from pdstemplate import PdsTemplate
+    from pdstemplate.pds3table import pds3_table_preprocessor
+
+    template = PdsTemplate(label_path, crlf=True, ...
+                           preprocess=pds3_table_preprocessor, kwargs={...})
+    template.write({}, label_path, ...)
+
+The constructor invokes :meth:`pds3_table_preprocessor` to transform the label into a
+template. You can use the `kwargs` input dictionary to provide inputs to the
+pre-processor, such as adding a requirement that each column contain FORMAT,
+COLUMN_NUMBER, MINIMUM/MAXIMUM_VALUEs, etc., and designating how warnings and errors are
+to be handled.
+
+Afterward, the call to the template's :meth:`~pdstemplate.PdsTemplate.write` method will
+validate the label and/or write a new label, depending on its input parameters.
+
+For example, suppose the label contains this::
+
+    PDS_VERSION_ID          = PDS3
+    RECORD_TYPE             = FIXED_LENGTH
+    RECORD_BYTES            = 1089
+    FILE_RECORDS            = 1711
+    ^INDEX_TABLE            = "COVIMS_0094_index.tab"
+
+    OBJECT                  = INDEX_TABLE
+      INTERCHANGE_FORMAT    = ASCII
+      ROWS                  = 1711
+      COLUMNS               = 61
+      ROW_BYTES             = 1089
+      DESCRIPTION           = "This Cassini VIMS image index ...."
+
+      OBJECT                = COLUMN
+        NAME                = FILE_NAME
+        DATA_TYPE           = CHARACTER
+        START_BYTE          = 2
+        BYTES               = 25
+        DESCRIPTION         = "Name of file in the directory"
+      END_OBJECT            = COLUMN
+    ...
+
+You then execute this::
+
+    template = PdsTemplate(label_path, crlf=True,
+                           preprocess=pds3_table_preprocessor,
+                           kwargs={'numbers': True, 'formats': True})
+
+After the call, you can look at the template's `content` attribute, which contains the
+template's content after pre-processing. Its value is this::
+
+    $ONCE(ANALYZE_TABLE(LABEL_PATH().replace(".lbl",".tab").replace(".LBL",".TAB"), crlf=True))
+    $ONCE(VALIDATE_PDS3_LABEL(hide_warnings, abort_on_error))
+    PDS_VERSION_ID          = PDS3
+    RECORD_TYPE             = $LABEL_VALUE("RECORD_TYPE")$
+    RECORD_BYTES            = $LABEL_VALUE("RECORD_BYTES")$
+    FILE_RECORDS            = $LABEL_VALUE("FILE_RECORDS")$
+
+    OBJECT                  = INDEX_TABLE
+      INTERCHANGE_FORMAT    = $LABEL_VALUE("INTERCHANGE_FORMAT")$
+      ROWS                  = $LABEL_VALUE("ROWS")$
+      COLUMNS               = $LABEL_VALUE("COLUMNS")$
+      ROW_BYTES             = $LABEL_VALUE("ROW_BYTES")$
+      DESCRIPTION           = "This Cassini VIMS image index ...."
+
+      OBJECT                = COLUMN
+        NAME                = FILE_NAME
+        COLUMN_NUMBER       = $LABEL_VALUE("COLUMN_NUMBER", 1)$
+        DATA_TYPE           = $LABEL_VALUE("DATA_TYPE", 1)$
+        START_BYTE          = $LABEL_VALUE("START_BYTE", 1)$
+        BYTES               = $LABEL_VALUE("BYTES", 1)$
+        FORMAT              = $QUOTE_IF(LABEL_VALUE("FORMAT", 1))$
+        DESCRIPTION         = "Name of file in the directory"
+      END_OBJECT            = COLUMN
+    ...
+
+The TABLE and COLUMN attributes defining table format and structure have been replaced by
+calls to :meth:`LABEL_VALUE`, which will provide the correct value whether or not the
+value in the original label was correct. Also, COLUMN_NUMBER and FORMAT have been added to
+the COLUMN object because of the pre-processor inputs `numbers=True` and `formats=True`.
+
+Another application of the preprocessor is to simplify the construction of a template for
+an ASCII table. Within a template, the only required attributes of a COLUMN object are
+NAME and DESCRIPTION. Optionally, you can also specify any special constants,
+VALID_MINIMUM/MAXIMUM values, OFFSET and SCALING_FACTOR, and the number of ITEMS if the
+COLUMN object describes more than one. All remaining information about the column, such as
+DATA_TYPE, START_BYTE, BYTES, etc., will be filled in by the pre-processor. Inputs to the
+preprocessor let you indicate whether to include FORMATs, COLUMN_NUMBERs, and the
+MINIMUM/MAXIMUM_VALUEs attributes automatically.
 """
 
 import re
-import pathlib
 import warnings
+
+from filecache import FCPath
 
 from . import PdsTemplate
 from .asciitable import ANALYZE_TABLE, TABLE_VALUE, _latest_ascii_table
-from ._utils import get_logger, TemplateError, TemplateAbort, _check_terminators
+from .utils import get_logger, TemplateError, TemplateAbort, _check_terminators
 
+##########################################################################################
+# Pre-defined template functions
+##########################################################################################
+
+# For global access to the latest table
+_LATEST_PDS3_TABLE = None
+
+
+def ANALYZE_PDS3_LABEL(labelpath, *, validate=True):
+    """Analyze the current template as applied to the most recently analyzed ASCII table.
+
+    After this call, :meth:`LABEL_VALUE` can be used anywhere in the template to fill in
+    values derived from the table.
+
+    Parameters:
+        labelpath (str, Path, or FCPath):
+            Path to the current label.
+        validate (bool, optional):
+            If True, a warning or error message will be logged for every problem found in
+            the template. Otherwise, warnings will be corrected silently.
+    """
+
+    global _LATEST_PDS3_TABLE
+
+    get_logger().debug('Analyzing PDS3 label', labelpath)
+    _LATEST_PDS3_TABLE = Pds3Table(labelpath, validate=False, analyze_only=True)
+    if validate:
+        return Pds3Table._validate_inside_template(_LATEST_PDS3_TABLE,
+                                                   hide_warnings=False,
+                                                   abort_on_error=False)
+
+def VALIDATE_PDS3_LABEL(hide_warnings=False, abort_on_error=True):
+    """Log a warning for every error found when generating this PDS3 label.
+
+    :meth:`ANALYZE_PDS3_LABEL` must be called first.
+
+    Parameters:
+        abort_on_error (bool): If True and a validation error occurs, further evaluation
+            of the template will be aborted.
+
+    Returns:
+        int: The number of errors issued.
+        int: The number of warnings issued.
+    """
+
+    get_logger().debug('Validating PDS3 label', _LATEST_PDS3_TABLE.labelpath)
+    return Pds3Table._validate_inside_template(_LATEST_PDS3_TABLE,
+                                               hide_warnings=hide_warnings,
+                                               abort_on_error=abort_on_error)
+
+
+def LABEL_VALUE(name, column=0):
+    """Lookup function returning information about the PDS3 label after it has been
+    analyzed or pre-processed and after the ASCII table has been analyzed.
+
+    Each of the following function calls returns a valid PDS3 parameter value. Columns can
+    be identified by name or by number starting from 1.
+
+    * `LABEL_VALUE("PATH")`
+    * `LABEL_VALUE("BASENAME")`
+    * `LABEL_VALUE("RECORD_TYPE")`
+    * `LABEL_VALUE("RECORD_BYTES")`
+    * `LABEL_VALUE("FILE_RECORDS")`
+    * `LABEL_VALUE("INTERCHANGE_FORMAT")`
+    * `LABEL_VALUE("ROWS")`
+    * `LABEL_VALUE("COLUMNS")`
+    * `LABEL_VALUE("ROW_BYTES")`
+    * `LABEL_VALUE("DATA_TYPE", <column>)`
+    * `LABEL_VALUE("START_BYTE", <column>)`
+    * `LABEL_VALUE("BYTES", <column>)`
+    * `LABEL_VALUE("COLUMN_NUMBER", <column>)`
+    * `LABEL_VALUE("FORMAT", <column>)` (quoted if it contains a period)
+    * `LABEL_VALUE("MINIMUM_VALUE", <column>)`
+    * `LABEL_VALUE("MAXIMUM_VALUE", <column>)`
+    * `LABEL_VALUE("DERIVED_MINIMUM", <column>)`
+    * `LABEL_VALUE("DERIVED_MAXIMUM", <column>)`
+
+    It also provides these values derived from the existing template or label: "NAME",
+    "ITEMS", "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
+    "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MINIMUM", and
+    "VALID_MAXIMUM".
+
+    In addition, these options are supported:
+
+    * `LABEL_VALUE("TABLE_PATH")`: full path to the associated ASCII table file.
+    * `LABEL_VALUE("TABLE_BASENAME")`: basename of the associated ASCII table file.
+    * `LABEL_VALUE("FIRST", <column>)`: value from the first row of this column.
+    * `LABEL_VALUE("LAST", <column>)`: value from the last row of this column.
+
+    Parameters:
+        name (str): Name of a parameter.
+        column (str or int, optional): The name or COLUMN_NUMBER (starting at 1) for a
+            column; use 0 for general parameters.
+
+    Returns:
+        int, float, str, or None: The correct value for the specified parameter.
+    """
+
+    if not _LATEST_PDS3_TABLE:
+        raise TemplateAbort('No PDS3 label has been analyzed')
+
+    if _latest_ascii_table():       # make sure we're referring to the latest AsciiTable
+        _LATEST_PDS3_TABLE.assign_to()
+
+    try:
+        return _LATEST_PDS3_TABLE.lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
+
+
+def OLD_LABEL_VALUE(name, column=0):
+    """Lookup function returning information about the current content of the PDS3 label,
+    whether or not it is correct.
+
+    Available top-level keywords are "RECORD_TYPE", "RECORD_BYTES", "FILE_RECORDS",
+    "INTERCHANGE_FORMAT", "ROWS", "COLUMNS", and "ROW_BYTES".
+
+    Available column-level keywords are "NAME", "COLUMN_NUMBER", "DATA_TYPE",
+    "START_BYTE", "BYTES", "FORMAT", "ITEMS", "ITEM_BYTES", "ITEM_OFFSET",
+    "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
+    "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MAXIMUM",
+    "VALID_MINIMUM", "MINIMUM_VALUE", "MAXIMUM_VALUE", "DERIVED_MINIMUM", and
+    "DERIVED_MAXIMUM".
+
+    Parameters:
+        name (str): Name of a parameter.
+        column (str or int, optional): The name or COLUMN_NUMBER (starting at 1) for a
+            column; use 0 for general parameters.
+
+    Returns:
+        int, float, str, or None: The correct value for the specified parameter.
+    """
+
+    try:
+        return _LATEST_PDS3_TABLE.old_lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
+
+
+def _latest_pds3_table():
+    """The most recently defined AsciiTable object. Provided for global access."""
+
+    return _LATEST_PDS3_TABLE
+
+
+PdsTemplate.define_global('ANALYZE_PDS3_LABEL', ANALYZE_PDS3_LABEL)
+
+##########################################################################################
+# Preprocessor
+##########################################################################################
+
+def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
+                            formats=False, minmax=(), derived=(), edits=[], reals=[]):
+    """A pre-processor function for use in the :meth:~pdstemplate.PdsTemplate`
+    constructor.
+
+    This function receives a PDS3 label or template describing an ASCII table and returns
+    a revised template in which the supported TABLE and COLUMN attributes have been
+    replaced by calls to LABEL_VALUE. This ensures that the generated label will contain a
+    complete and accurate set of values.
+
+    Parameters:
+        labelpath (str, Path, or FCPath):
+            The path to the PDS3 label or template file.
+        content (str): The full content of the template as a single string with a newline
+            character after each line.
+        validate (bool, optional):
+            If True, a warning will be issued for each error found when the label is
+            generated; otherwise, errors will be repaired silently.
+        numbers (bool, optional):
+            True to include COLUMN_NUMBER into each COLUMN object if it is not already
+            there.
+        formats (bool, optional):
+            True to include FORMAT into each COLUMN object if it is not already there.
+        minmax (str, tuple[str], or list[str], optional):
+            Zero or more names of columns for which to include the MINIMUM_VALUE and
+            MAXIMUM_VALUE. In addition or as an alternative, use "float" to include these
+            values for all floating-point columns and/or "int" to include these values for
+            all integer columns.
+        derived (str, tuple[str], or list[str], optional):
+            Zero or more names of columns for which to include the DERIVED_MINIMUM and
+            DERIVED_MAXIMUM. In addition or as an alternative, use "float" to include
+            these values for all floating-point columns.
+        edits (list[str]), optional):
+            A list of strings of the form "column:name = value", which should be used to
+            insert or replace values currently in the label.
+        reals (str, tuple[str], or list[str]), optional):
+            Names of columns that should be treated as ASCII_REAL even if thee column only
+            contains integers.
+
+    Returns:
+        str: The revised content for the template.
+    """
+
+    logger = get_logger()
+    logger.debug('PDS3 table preprocessor', labelpath)
+    pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
+                           formats=formats, minmax=minmax, derived=derived, edits=edits,
+                           reals=reals)
+
+    return pds3_label.content
+
+##########################################################################################
+# Pds3Table class definition and API
+##########################################################################################
 
 class Pds3Table():
     """Class encapsulating a label or template that describes a PDS3 label containing a
@@ -30,9 +396,6 @@ class Pds3Table():
                                       r'( *OBJECT *= *COLUMN *\r?\n)(.*?\r?\n)'
                                       r'( *END_OBJECT *= *COLUMN *\r?\n)', re.DOTALL)
 
-    # For global access to the latest table
-    _LATEST_PDS3_TABLE = None
-
     def __init__(self, labelpath, label='', *, validate=True, analyze_only=False,
                  crlf=None, numbers=False, formats=False, minmax=(), derived=(),
                  edits=[], reals=[]):
@@ -40,7 +403,7 @@ class Pds3Table():
         template and saves the info for validation or possible repair.
 
         Parameters:
-            labelpath (str or pathlib.Path):
+            labelpath (str, Path, or FCPath):
                 The path to a PDS3 label or template file.
             label (str, optional): The full content of the template as a single string or
                 list of strings, one per record (including line terminators).
@@ -77,7 +440,9 @@ class Pds3Table():
                 only contains integers.
         """
 
-        self.labelpath = pathlib.Path(labelpath)
+        global _LATEST_PDS3_TABLE
+
+        self.labelpath = FCPath(labelpath)
 
         if not label:
             label = labelpath.read_bytes()      # binary to preserve terminators
@@ -170,7 +535,7 @@ class Pds3Table():
         self.table = None
 
         # Set globals for access within the template object
-        Pds3Table._LATEST_PDS3_TABLE = self
+        _LATEST_PDS3_TABLE = self
         PdsTemplate.define_global('VALIDATE_PDS3_LABEL', VALIDATE_PDS3_LABEL)
         PdsTemplate.define_global('LABEL_VALUE', LABEL_VALUE)
         PdsTemplate.define_global('OLD_LABEL_VALUE', OLD_LABEL_VALUE)
@@ -382,8 +747,8 @@ class Pds3Table():
         string is returned instead.
 
         Returns:
-            pathlib.Path: Path to the table file if defined in the label; otherwise, an
-                empty string.
+            FCPath: Path to the table file if defined in the label; otherwise, an empty
+            string.
         """
 
         basename = self.get_table_basename()
@@ -452,7 +817,7 @@ class Pds3Table():
             else:
                 warns += 1
                 if not hide_warnings:
-                    logger.warn(message)
+                    logger.warning(message)
 
         if errors and abort_on_error:
             raise TemplateAbort('Aborted')
@@ -653,8 +1018,8 @@ class Pds3Table():
         Each of the following function calls returns a valid PDS3 parameter value. Columns
         can be identified by name or by number starting from 1.
 
-        * `lookup("PATH")
-        * `lookup("BASENAME")
+        * `lookup("PATH")`
+        * `lookup("BASENAME")`
         * `lookup("RECORD_TYPE")`
         * `lookup("RECORD_BYTES")`
         * `lookup("FILE_RECORDS")`
@@ -662,15 +1027,15 @@ class Pds3Table():
         * `lookup("ROWS")`
         * `lookup("COLUMNS")`
         * `lookup("ROW_BYTES")`
-        * 'lookup("DATA_TYPE", <column>)`
-        * 'lookup("START_BYTE", <column>)`
-        * 'lookup("BYTES", <column>)`
-        * 'lookup("COLUMN_NUMBER", <column>)`
-        * 'lookup("FORMAT", <column>)` (quoted if it contains a period)
-        * 'lookup("MINIMUM_VALUE", <column>)`
-        * 'lookup("MAXIMUM_VALUE", <column>)`
-        * 'lookup("DERIVED_MINIMUM", <column>)`
-        * 'lookup("DERIVED_MAXIMUM", <column>)`
+        * `lookup("DATA_TYPE", <column>)`
+        * `lookup("START_BYTE", <column>)`
+        * `lookup("BYTES", <column>)`
+        * `lookup("COLUMN_NUMBER", <column>)`
+        * `lookup("FORMAT", <column>)` (quoted if it contains a period)
+        * `lookup("MINIMUM_VALUE", <column>)`
+        * `lookup("MAXIMUM_VALUE", <column>)`
+        * `lookup("DERIVED_MINIMUM", <column>)`
+        * `lookup("DERIVED_MAXIMUM", <column>)`
 
         It also provides these values derived from the existing template or label: "NAME",
         "ITEMS", "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
@@ -681,8 +1046,8 @@ class Pds3Table():
 
         * `lookup("TABLE_PATH")`: full path to the associated ASCII table file.
         * `lookup("TABLE_BASENAME")`: basename of the associated ASCII table file.
-        * 'lookup("FIRST", <column>)`: value from the first row of this column.
-        * 'lookup("LAST", <column>)`: value from the last row of this column.
+        * `lookup("FIRST", <column>)`: value from the first row of this column.
+        * `lookup("LAST", <column>)`: value from the last row of this column.
 
         Parameters:
             name (str): Name of a parameter.
@@ -888,8 +1253,10 @@ class Pds3Table():
         """Careful tally of the correct number of COLUMN objects, allowing for a mismatch
         between the table and the label.
 
-        Without errors, this should work:
+        Without errors, this should work::
+
             columns = self.table.lookup('COLUMNS') - self._extra_items
+
         However, self._extra_items includes extra items that might be missing from the
         table.
         """
@@ -925,7 +1292,7 @@ class Pds3Table():
 
         Returns:
             int, float, str, or None: The current value of the specified parameter; None
-                if it is not found in the label.
+            if it is not found in the label.
         """
 
         if not column:
@@ -1125,194 +1492,5 @@ class Pds3Table():
             return value
 
         return '"' + value + '"'
-
-##########################################################################################
-# Preprocessor
-##########################################################################################
-
-def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
-                            formats=False, minmax=(), derived=(), edits=[], reals=[]):
-    """Update the PDS3 label or template for an ASCII table, replacing given values with
-    those to be derived from an ASCII table.
-
-    After the template is preprocessed, the function "`$LABEL_VALUE()$`" can be used
-    anywhere in the template to fill in values derived from the table.
-
-    Parameters:
-        labelpath (str or pathlib.Path):
-            The path to the PDS3 label or template file.
-        content (str): The full content of the template as a single string with a newline
-            character after each line.
-        validate (bool, optional):
-            If True, a warning will be issued for each error found when the label is
-            generated; otherwise, errors will be repaired silently.
-        numbers (bool, optional):
-            True to include COLUMN_NUMBER into each COLUMN object if it is not already
-            there.
-        formats (bool, optional):
-            True to include FORMAT into each COLUMN object if it is not already there.
-        minmax (str, tuple[str], or list[str], optional):
-            Zero or more names of columns for which to include the MINIMUM_VALUE and
-            MAXIMUM_VALUE. In addition or as an alternative, use "float" to include these
-            values for all floating-point columns and/or "int" to include these values for
-            all integer columns.
-        derived (str, tuple[str], or list[str], optional):
-            Zero or more names of columns for which to include the DERIVED_MINIMUM and
-            DERIVED_MAXIMUM. In addition or as an alternative, use "float" to include
-            these values for all floating-point columns.
-        edits (list[str]), optional):
-            A list of strings of the form "column:name = value", which should be used to
-            insert or replace values currently in the label.
-        reals (str, tuple[str], or list[str]), optional):
-            Names of columns that should be treated as ASCII_REAL even if thee column only
-            contains integers.
-
-    Returns:
-        str: The revised content for the template.
-    """
-
-    logger = get_logger()
-    logger.debug('PDS3 table preprocessor', labelpath)
-    pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
-                           formats=formats, minmax=minmax, derived=derived, edits=edits,
-                           reals=reals)
-
-    return pds3_label.content
-
-##########################################################################################
-# Template functions
-##########################################################################################
-
-def VALIDATE_PDS3_LABEL(hide_warnings=False, abort_on_error=True):
-    """Log a warning for every error found when generating this PDS3 label.
-
-    Parameters:
-        abort_on_error (bool): If True and a validation error occurs, further evaluation
-            of the template will be aborted.
-
-    Returns:
-        int: The number of errors issued.
-        int: The number of warnings issued.
-    """
-
-    label = Pds3Table._LATEST_PDS3_TABLE
-    get_logger().debug('Validating PDS3 label', label.labelpath)
-    return Pds3Table._validate_inside_template(label, hide_warnings=hide_warnings,
-                                               abort_on_error=abort_on_error)
-
-
-def ANALYZE_PDS3_LABEL(labelpath, *, validate=True):
-    """Analyze the current template as applied to the most recently analyzed ASCII table.
-
-    After this call, the function "`$LABEL_VALUE()$`" can be used anywhere in the template
-    to fill in values derived from the table.
-
-    Parameters:
-        labelpath (str or pathlib.Path):
-            Path to the current label.
-        validate (bool, optional):
-            If True, a warning or error message will be logged for every problem found in
-            the template. Otherwise, warnings will be corrected silently.
-        abort_on_error (bool): If True and a validation error occurs that is not
-            recoverable, generation of the label will be aborted. Validation warnings do
-            not cause an abort.
-    """
-
-    get_logger().debug('Analyzing PDS3 label', labelpath)
-    label = Pds3Table(labelpath, validate=False, analyze_only=True)
-    if validate:
-        return Pds3Table._validate_inside_template(label, hide_warnings=False,
-                                                   abort_on_error=False)
-
-
-def LABEL_VALUE(name, column=0):
-    """Lookup function returning information about the PDS3 label after it has been
-    analyzed or pre-processed and after the ASCII table has been analyzed.
-
-    Each of the following function calls returns a valid PDS3 parameter value. Columns can
-    be identified by name or by number starting from 1.
-
-    * `LABEL_VALUE("TABLE")
-    * `LABEL_VALUE("RECORD_TYPE")`
-    * `LABEL_VALUE("RECORD_BYTES")`
-    * `LABEL_VALUE("FILE_RECORDS")`
-    * `LABEL_VALUE("INTERCHANGE_FORMAT")`
-    * `LABEL_VALUE("ROWS")`
-    * `LABEL_VALUE("COLUMNS")`
-    * `LABEL_VALUE("ROW_BYTES")`
-    * 'LABEL_VALUE("NAME", <column>)`
-    * 'LABEL_VALUE("DATA_TYPE", <column>)`
-    * 'LABEL_VALUE("START_BYTE", <column>)`
-    * 'LABEL_VALUE("BYTES", <column>)`
-    * 'LABEL_VALUE("COLUMN_NUMBER", <column>)`
-    * 'LABEL_VALUE("FORMAT", <column>)` (quoted if it contains a period)
-    * 'LABEL_VALUE("MINIMUM_VALUE", <column>)`
-    * 'LABEL_VALUE("MAXIMUM_VALUE", <column>)`
-    * 'LABEL_VALUE("DERIVED_MINIMUM", <column>)`
-    * 'LABEL_VALUE("DERIVED_MAXIMUM", <column>)`
-
-    It also provides these values derived from the existing template or label: "NAME",
-    "ITEMS", "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
-    "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MINIMUM", and
-    "VALID_MAXIMUM".
-
-    In addition, these options are supported:
-
-    * `LABEL_VALUE("TABLE_PATH")`: full path to the associated ASCII table file.
-    * `LABEL_VALUE("TABLE_BASENAME")`: basename of the associated ASCII table file.
-    * 'LABEL_VALUE("FIRST", <column>)`: value from the first row of this column.
-    * 'LABEL_VALUE("LAST", <column>)`: value from the last row of this column.
-
-    Parameters:
-        name (str): Name of a parameter.
-        column (str or int, optional): The name or COLUMN_NUMBER (starting at 1) for a
-            column; use 0 for general parameters.
-
-    Returns:
-        int, float, str, or None: The correct value for the specified parameter.
-    """
-
-    if not Pds3Table._LATEST_PDS3_TABLE:
-        raise TemplateAbort('No PDS3 label has been analyzed')
-
-    if _latest_ascii_table():       # make sure we're referring to the latest AsciiTable
-        Pds3Table._LATEST_PDS3_TABLE.assign_to()
-
-    try:
-        return Pds3Table._LATEST_PDS3_TABLE.lookup(name, column)
-    except Exception as err:
-        raise TemplateError(err) from err
-
-
-def OLD_LABEL_VALUE(name, column=0):
-    """Lookup function returning information about the current content of the PDS3 label,
-    whether or not it is correct.
-
-    Available top-level keywords are "RECORD_TYPE", "RECORD_BYTES", "FILE_RECORDS",
-    "INTERCHANGE_FORMAT", "ROWS", "COLUMNS", and "ROW_BYTES".
-
-    Available column-level keywords are "NAME", "COLUMN_NUMBER", "DATA_TYPE",
-    "START_BYTE", "BYTES", "FORMAT", "ITEMS", "ITEM_BYTES", "ITEM_OFFSET",
-    "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
-    "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MAXIMUM",
-    "VALID_MINIMUM", "MINIMUM_VALUE", "MAXIMUM_VALUE", "DERIVED_MINIMUM", and
-    "DERIVED_MAXIMUM".
-
-    Parameters:
-        name (str): Name of a parameter.
-        column (str or int, optional): The name or COLUMN_NUMBER (starting at 1) for a
-            column; use 0 for general parameters.
-
-    Returns:
-        int, float, str, or None: The correct value for the specified parameter.
-    """
-
-    try:
-        return Pds3Table._LATEST_PDS3_TABLE.old_lookup(name, column)
-    except Exception as err:
-        raise TemplateError(err) from err
-
-
-PdsTemplate.define_global('ANALYZE_PDS3_LABEL', ANALYZE_PDS3_LABEL)
 
 ##########################################################################################

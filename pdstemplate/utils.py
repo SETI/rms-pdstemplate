@@ -1,51 +1,42 @@
 ##########################################################################################
-# pdstemplate/_utils.py
+# pdstemplate/utils.py
 ##########################################################################################
+"""
+#################
+pdstemplate.utils
+#################
 
-import os
-import pathlib
+Utility functions and classes.
+"""
 
+from filecache import FCPath
 from pdslogger import PdsLogger, LoggerError
+
 
 class TemplateError(LoggerError):
     """Class for all template parsing exceptions."""
     pass
 
+
 class TemplateAbort(TemplateError):
     """Raise this class to abort processing a template if the situation is hopeless.
 
-    When raising an AbortTemplate exception, pass it the exact text to appear in the log.
-    It will appear as a FATAL message with "**** " followed by this text and then a colon
-    and the file name.
+    When raising this exception, pass it the exact text to appear in the log. It will
+    appear as a FATAL message with four asterisks followed by the given text, and the file
+    path if any.
     """
     pass
 
+
 class _RaisedException(Exception):
-    """Internal; used to manage error messages from $RAISE()$."""
+    """Internal; used to manage error messages from `RAISE()`."""
 
     def __init__(self, exception, message):
         self.exception = exception
         self.message = message
 
+
 _NOESCAPE_FLAG = '!!NOESCAPE!!:'    # used internally
-
-##########################################################################################
-# $INCLUDE directory management
-##########################################################################################
-
-_INCLUDE_DIRS = None
-
-def getenv_include_dirs():
-    """The list of directories to search for $INCLUDE files."""
-
-    global _INCLUDE_DIRS
-
-    if _INCLUDE_DIRS is None:
-        value = os.getenv('PDSTEMPLATE_INCLUDES')
-        dirs = value.split(':') if value else []
-        _INCLUDE_DIRS = [pathlib.Path(d) for d in dirs]
-
-    return _INCLUDE_DIRS
 
 ##########################################################################################
 # Logger management
@@ -56,18 +47,19 @@ _LOGGER = PdsLogger.get_logger('pds.template', timestamps=False, digits=0, logna
                                pid=False, indent=True, blanklines=False, level='info')
 
 def set_logger(logger):
-    """Define the global PdsLogger for PdsTemplate and associated tools.
+    """Define the global logger for PdsTemplate and associated tools.
 
     Parameters:
-        logger (PdsLogger): Logger to use, replacing the default.
+        logger (PdsLogger or logging.Logger): Logger to use, replacing the default.
 
     Returns:
-        PdsLogger: The new PdsLogger.
+        PdsLogger: The new PdsLogger. If the input was a logging.Logger, it is converted
+        to a PdsLogger.
     """
 
     global _LOGGER
 
-    _LOGGER = logger
+    _LOGGER = PdsLogger.as_pdslogger(logger)
     return _LOGGER
 
 
@@ -82,10 +74,13 @@ def set_log_level(level):
 
     Parameters:
         level (int or str, optional):
-            The minimum level of level name for a record to enter the log.
+            The minimum level of level name for a record to enter the log. Use an integer
+            1-50 or a level name, one of "debug"=10, "info"=20, "warning"=30, "error"=40,
+            or "fatal"=50.
     """
 
     _LOGGER.set_level(level)
+
 
 def set_log_format(**kwargs):
     """Set the formatting and other properties of the logger.
@@ -126,7 +121,7 @@ def _check_terminators(filepath, content='', crlf=None):
     line terminator.
 
     Parameters:
-        filepath (str or pathlib.Path):
+        filepath (str, Path, or FCPath):
             Path to the file, used for error messages.
         content (str, bytes, list[str], or list[bytes]):
             Content of the file as a single string or byte string or else as a list of
@@ -143,7 +138,7 @@ def _check_terminators(filepath, content='', crlf=None):
         TemplateError: If an incorrect line terminator was found.
     """
 
-    filepath = pathlib.Path(filepath)
+    filepath = FCPath(filepath)
     if not content:
         content = filepath.read_bytes()
 

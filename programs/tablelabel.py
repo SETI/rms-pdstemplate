@@ -2,11 +2,18 @@
 ##########################################################################################
 # rms-pdstemplate/programs/tablelabel.py
 ##########################################################################################
-"""PDS Ring-Moon Systems Node, SETI Institute
+"""
+.. tablelabel:
 
-This standalone program can be used to validate and repair existing PDS3 labels describing
-ASCII tables and can also create new labels. Type
-    tablelabel.py --help
+##########
+tablelabel
+##########
+
+This is a stand-alone program that can be used to validate and repair existing PDS3 labels
+describing ASCII tables and can also create new labels. Type::
+
+    tablelabel --help
+
 for more information.
 """
 
@@ -24,6 +31,26 @@ LOGNAME = 'pds.tablelabel'
 parser = argparse.ArgumentParser(
     description='tablelabel: Validate, repair, or create a PDS3 label file for an '
                 'existing ASCII table.')
+
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--validate', '-v',
+                   dest='task', action='store_const', const='validate',
+                   help='Validate an existing label, logging any errors or other '
+                        'discrepancies as warnings messages; do not write a new label.')
+
+group.add_argument('--repair', '-r',
+                   dest='task', action='store_const', const='repair',
+                   help='Update an existing label file only if the new label would be '
+                        'different; otherwise leave it unchanged.')
+
+group.add_argument('--create', '-c',
+                   dest='task', action='store_const', const='create',
+                   help='Create a new label where none exists; leave existing labels '
+                        'alone.')
+
+group.add_argument('--save', '-s',
+                   dest='task', action='store_const', const='save',
+                   help='Save a new label, replacing any existing file.')
 
 parser.add_argument('path', nargs='*', type=str,
                     help='Path to one or more PDS3 label or ASCII table files. It is '
@@ -72,26 +99,6 @@ parser.add_argument('-e', dest='upper_e', action='store_false', default=True,
 
 parser.add_argument('-E', dest='upper_e', action='store_true',
                     help='Format values involving an exponential using upper case "E"')
-
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('--validate', '-v',
-                   dest='task', action='store_const', const='validate',
-                   help='Validate an existing label, logging any errors or other '
-                        'discrepancies as warnings messages; do not write a new label.')
-
-group.add_argument('--repair', '-r',
-                   dest='task', action='store_const', const='repair',
-                   help='Update an existing label file only if the new label would be '
-                        'different; otherwise leave it unchanged.')
-
-group.add_argument('--create', '-c',
-                   dest='task', action='store_const', const='create',
-                   help='Create a new label where none exists; leave existing labels '
-                        'alone.')
-
-group.add_argument('--save', '-s',
-                   dest='task', action='store_const', const='save',
-                   help='Save a new label, replacing any existing file.')
 
 parser.add_argument('--nobackup', '-B', action='store_true',
                     help='If a file is repaired, do not save a backup of an existing '

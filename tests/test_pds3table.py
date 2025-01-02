@@ -14,11 +14,12 @@ import time
 import unittest
 
 import pdslogger
+from filecache import FCPath
 
 from pdstemplate import PdsTemplate, get_logger, TemplateError
 from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
                                   LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
-from pdstemplate.pds3table import pds3_table_preprocessor
+from pdstemplate.pds3table import pds3_table_preprocessor, _latest_pds3_table
 from pdstemplate.asciitable import AsciiTable
 
 
@@ -54,7 +55,7 @@ class Test_Pds3Table(unittest.TestCase):
                                                         / 'COVIMS_0094_index.tab'))
         self.assertEqual(LABEL_VALUE('TABLE_BASENAME'), 'COVIMS_0094_index.tab')
 
-        ANALYZE_TABLE(Pds3Table._LATEST_PDS3_TABLE.get_table_path())
+        ANALYZE_TABLE(_latest_pds3_table().get_table_path())
 
         self.assertEqual(LABEL_VALUE('RECORD_BYTES'), 1089)
         self.assertEqual(LABEL_VALUE('FILE_RECORDS'), 1711)
