@@ -2,6 +2,7 @@ coverage
 flake8
 myst-parser
 pytest
+rms-filecache
 rms-julian
 rms-pdslogger>=2.0.0
 sphinx
