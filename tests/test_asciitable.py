@@ -250,7 +250,7 @@ class Test_AsciiTable(unittest.TestCase):
 
         # ANALYZE_TABLE
         ANALYZE_TABLE(str(path))
-        self.assertEqual(TABLE_VALUE('PATH'), str(path))
+        self.assertEqual(TABLE_VALUE('PATH'), str(path).replace('\\', '/'))
         self.assertEqual(TABLE_VALUE('BASENAME'), path.name)
         self.assertEqual(TABLE_VALUE('ROWS'), 1711)
         self.assertEqual(TABLE_VALUE('COLUMNS'), 74)
