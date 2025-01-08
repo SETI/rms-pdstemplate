@@ -1,17 +1,174 @@
 ##########################################################################################
 # pdstemplate/asciitable.py
 ##########################################################################################
-"""PDS Ring-Moon Systems Node, SETI Institute
+"""
+.. _asciitable:
 
-Define template functions ANALYZE_TABLE() and TABLE_VALUE() for use within a template
-along with the AsciiTable class that supports them.
+######################
+pdstemplate.asciitable
+######################
+
+``asciitable`` is a plug-in module to assist with the labeling of ASCII tables in PDS3 and
+PDS4. It supports the :ref:`pds3table` module and the ``tablelabel`` tool, and will also
+be used by a future ``pds4table`` tool. To import::
+
+    import pdstemplate.asciitable
+
+This import creates two new pds-defined functions, which can be accessed within any
+template.
+
+* :meth:`ANALYZE_TABLE` takes the path to an existing ASCII table and analyzes its
+  content, inferring details about the content and formats of all the columns.
+* :meth:`TABLE_VALUE` returns information about the content of the table for use within
+  the label to be generated.
+
+For example, consider a template that contains this content::
+
+    $ONCE(ANALYZE_TABLE(LABEL_PATH().replace('.lbl', '.tab')))
+    ...
+    OBJECT              = TABLE
+      ...
+      ROWS              = $TABLE_VALUE('ROWS')$
+      COLUMNS           = $TABLE_VALUE('COLUMNS')$
+
+      OBJECT            = COLUMN
+        NAME            = FILE_NAME
+        DATA_TYPE       = $TABLE_VALUE("PDS3_DATA_TYPE", 1)$
+        START_BYTE      = $TABLE_VALUE("START_BYTE", 1)$
+        BYTES           = $TABLE_VALUE("BYTES", 1)$
+        FORMAT          = $TABLE_VALUE("PDS3_FORMAT", 1))$
+        MINIMUM_VALUE   = $TABLE_VALUE("MINIMUM", 1))$
+        MAXIMUM_VALUE   = $TABLE_VALUE("MAXIMUM", 1))$
+        DESCRIPTION     = "Name of file in the directory"
+      END_OBJECT        = COLUMN
+    ...
+
+
+The initial call to :meth:`ANALYZE_TABLE` is embedded inside a :ref:`ONCE` directive
+because it returns no content. However, it reads the table file and assembles a database
+of what it has found. The subsequent calls to it can be used for multiple labels and each
+label will always contain the correct numbers of ROWS and COLUMNS. :meth:`TABLE_VALUE` can
+also retrieve information about the content and format about each of the table's columns.
 """
 
-import pathlib
 import re
-from . import PdsTemplate
-from ._utils import get_logger, TemplateError, TemplateAbort, _check_terminators
 
+from filecache import FCPath
+
+from . import PdsTemplate
+from .utils import get_logger, TemplateError, TemplateAbort, _check_terminators
+
+##########################################################################################
+# Pre-defined template functions
+##########################################################################################
+
+# For global access to the latest table
+_LATEST_ASCII_TABLE = None
+
+
+def ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape=''):
+    """Analyze the given table and define it as the default table for subsequent calls to
+    :meth:`TABLE_VALUE` inside a template.
+
+    Parameters:
+        filepath (str, Path, or FCPath):
+            The path to an ASCII table file.
+        separator (str, optional):
+            The column separator character, typically a comma. Other options are
+            semicolon, tab, and vertical bar ("|").
+        crlf (bool, optional):
+            True to raise an error if the line terminators are not <CR><LF>; False to
+            raise an error if the line terminator is not <LF> alone; None to accept either
+            line terminator.
+        escape (str, optional):
+            The character to appear before a quote ('"') if the quote is to be taken as a
+            literal part of the string. Options are '"' for a doubled quote and '\\' for a
+            backslash. If not specified, quote characters inside quoted strings are
+            disallowed.
+    """
+
+    global _LATEST_ASCII_TABLE
+    _LATEST_ASCII_TABLE = None
+
+    logger = get_logger()
+    logger.debug('Analyzing ASCII table', filepath)
+    try:
+        _LATEST_ASCII_TABLE = AsciiTable(filepath, separator=separator, crlf=crlf,
+                                         escape=escape)
+    except Exception as err:
+        logger.exception(err)
+
+
+def TABLE_VALUE(name, column=0):
+    """Lookup function for information about the table analyzed in the most recent call to
+    :meth:`ANALYZE_TABLE`.
+
+    These are all the options; a column is indicated by an integer starting from zero:
+
+    * `TABLE_VALUE("PATH")` = full path to the table file.
+    * `TABLE_VALUE("BASENAME")` = basename of the table file.
+    * `TABLE_VALUE("ROWS")` = number of rows.
+    * `TABLE_VALUE("ROW_BYTES")` = bytes per row.
+    * `TABLE_VALUE("COLUMNS")` = number of columns.
+    * `TABLE_VALUE["TERMINATORS"]` = length of terminator: 1 for <LF>, 2 for <CR><LF>.
+    * `TABLE_VALUE("WIDTH", <column>)` = width of the column in bytes.
+    * `TABLE_VALUE("PDS3_FORMAT", <column>)` = a string containing the format for PDS3,
+      e.g.,"I7", "A23", or "F12.4".
+    * `TABLE_VALUE("PDS4_FORMAT", <column>)` = a string containing the format for PDS4,
+      e.g., "%7d", "%23s", or "%12.4f".
+    * 'TABLE_VALUE("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of `CHARACTER`,
+      "ASCII_REAL", "ASCII_INTEGER", or "TIME".
+    * 'TABLE_VALUE("PDS4_DATA_TYPE", <column>)` = PDS3 data type, e.g.,
+      "ASCII_Text_Preserved", "ASCII_Real", or "ASCII_Date_YMD".
+    * 'TABLE_VALUE("QUOTES", <column>)` = number of quotes before field value, 0 or 1.
+    * 'TABLE_VALUE("START_BYTE", <column>)` = start byte of column, starting from 1.
+    * 'TABLE_VALUE("BYTES", <column>)` = number of bytes in column, excluding quotes.
+    * 'TABLE_VALUE("VALUES", <column>)` = a list of all the values found in the column.
+    * 'TABLE_VALUE("MINIMUM", <column>)` = the minimum value in the column.
+    * 'TABLE_VALUE("MAXIMUM", <column>)` = the maximum value in the column.
+    * 'TABLE_VALUE("FIRST", <column>)` = the first value in the column.
+    * 'TABLE_VALUE("LAST", <column>)` = the last value in the column.
+
+    Parameters:
+        name (str): Name of a parameter.
+        column (int, optional): The index of the column, starting from zero.
+
+    Returns:
+        str, int, float, or bool: The value of the specified parameter as inferred from
+        the ASCII table.
+
+    Raises:
+        TemplateAbort: If no ASCII Table was successfully analyzed.
+        TemplateError: A wrapper for any other exception.
+    """
+
+    if not _LATEST_ASCII_TABLE:
+        raise TemplateAbort('No ASCII table has been analyzed')
+
+    try:
+        return _LATEST_ASCII_TABLE.lookup(name, column)
+    except Exception as err:
+        raise TemplateError(err) from err
+
+
+def _latest_ascii_table():
+    """The most recently defined AsciiTable object. Provided for global access."""
+
+    return _LATEST_ASCII_TABLE
+
+
+def _reset_ascii_table():
+    """Reset the most recently defined AsciiTable object to None, for debugging."""
+
+    global _LATEST_ASCII_TABLE
+    _LATEST_ASCII_TABLE = None
+
+
+PdsTemplate.define_global('ANALYZE_TABLE', ANALYZE_TABLE)
+
+##########################################################################################
+# AsciiTable class definition and API
+##########################################################################################
 
 class AsciiTable():
 
@@ -25,19 +182,16 @@ class AsciiTable():
         b'\t': re.compile(_COMMA_REGEX.replace(b',', b'\t')),
     }
 
-    # For global access to the latest table
-    _LATEST_ASCII_TABLE = None
-
-    def __init__(self, filepath, records=[], *, separator=',', crlf=None, escape=''):
-        """Constructor for an AsciiTable represented as a list of records.
+    def __init__(self, filepath, content=[], *, separator=',', crlf=None, escape=''):
+        """Constructor for an AsciiTable.
 
         Parameters:
-            filepath (str or pathlib.Path):
+            filepath (str, Path, or FCPath):
                 The path to an ASCII table file.
-            records (list[bytes], optional):
-                The table file content as a sequence of byte strings. If the list is
-                empty, the file will be read; otherwise, this content is used without
-                reading the file. Each record must include its line terminator.
+            content (bytes or list[bytes], optional):
+                The table file content as a byte string or sequence of byte strings. If
+                this input is empty, the file will be read; otherwise, this content is
+                used without reading the file. Line terminators must be included.
             separator (str, optional):
                 The column separator character, typically a comma. Other options are
                 semicolon, tab, and vertical bar ("|").
@@ -52,7 +206,9 @@ class AsciiTable():
                 strings are disallowed.
         """
 
-        self.filepath = pathlib.Path(filepath)
+        global _LATEST_ASCII_TABLE
+
+        self.filepath = FCPath(filepath)
 
         if separator not in ',;|\t':
             raise ValueError('Disallowed separator: ' + repr(separator))
@@ -63,17 +219,23 @@ class AsciiTable():
         self.escape = escape.encode('latin-1')
 
         # Read the file if necessary
-        if not records:
-            with self.filepath.open('rb') as f:
-                records = f.readlines()
+        if not content:
+            content = self.filepath.read_bytes()
 
         # Identify the line terminator and validate
         try:
-            self.crlf = _check_terminators(filepath, records, crlf=crlf)
+            self.crlf = _check_terminators(filepath, content, crlf=crlf)
         except TemplateError as err:
             raise TemplateAbort(err.message, self.filepath)
 
         self._terminators = 2 if self.crlf else 1
+        terminator = b'\r\n' if self.crlf else b'\n'
+
+        # Convert content to a list of byte strings
+        if isinstance(content, list):
+            records = content
+        else:
+            records = [rec + terminator for rec in content.split(terminator)[:-1]]
 
         # Intialize internals
         self._row_bytes = 0
@@ -146,7 +308,7 @@ class AsciiTable():
             self._formats.append(self._column_format(column, colno))
 
         # Provide global access
-        AsciiTable._LATEST_ASCII_TABLE = self
+        _LATEST_ASCII_TABLE = self
         PdsTemplate.define_global('TABLE_VALUE', self.lookup)
 
     def _column_format(self, column, colno):
@@ -335,25 +497,25 @@ class AsciiTable():
         * `lookup("ROWS")` = number of rows.
         * `lookup("ROW_BYTES")` = bytes per row.
         * `lookup("COLUMNS")` = number of columns.
-        * `lookup["TERMINATORS"] = length of terminator: 1 for <LF>, 2 for <CR><LF>.
+        * `lookup["TERMINATORS"]` = length of terminator: 1 for <LF>, 2 for <CR><LF>.
         * `lookup("WIDTH", <column>)` = width of the column in bytes.
         * `lookup("PDS3_FORMAT", <column>)` = a string containing the format for PDS3,
-           e.g.,`I7`, `A23`, or `"F12.4"`. If it contains a period, it is surrounded by
-           quotes.
+          e.g.,"I7", "A23", or "F12.4". If it contains a period, it is surrounded by
+          quotes.
         * `lookup("PDS4_FORMAT", <column>)` = a string containing the format for PDS4,
-          e.g., `%7d`, `%23s`, or `%12.4f`.
-        * 'lookup("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of `CHARACTER`,
-          `ASCII_REAL`, `ASCII_INTEGER`, or `TIME`.
-        * 'lookup("PDS4_DATA_TYPE", <column>)` = PDS3 data type, e.g.,
-          `ASCII_Text_Preserved`, `ASCII_Real`, or `ASCII_Date_YMD`.
-        * 'lookup("QUOTES", <column>)` = number of quotes before field value, 0 or 1.
-        * 'lookup("START_BYTE", <column>)` = start byte of column, starting from 1.
-        * 'lookup("BYTES", <column>)` = number of bytes in column, excluding quotes.
-        * 'lookup("VALUES", <column>)` = a list of all the values found in the column.
-        * 'lookup("MINIMUM", <column>)` = the minimum value in the column.
-        * 'lookup("MAXIMUM", <column>)` = the maximum value in the column.
-        * 'lookup("FIRST", <column>)` = the first value in the column.
-        * 'lookup("LAST", <column>)` = the last value in the column.
+          e.g., "%7d", "%23s", or "%12.4f".
+        * `lookup("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of "CHARACTER",
+          "ASCII_REAL", "ASCII_INTEGER", or "TIME".
+        * `lookup("PDS4_DATA_TYPE", <column>)` = PDS3 data type, e.g.,
+          "ASCII_Text_Preserved", "ASCII_Real", or "ASCII_Date_YMD".
+        * `lookup("QUOTES", <column>)` = number of quotes before field value, 0 or 1.
+        * `lookup("START_BYTE", <column>)` = start byte of column, starting from 1.
+        * `lookup("BYTES", <column>)` = number of bytes in column, excluding quotes.
+        * `lookup("VALUES", <column>)` = a list of all the values found in the column.
+        * `lookup("MINIMUM", <column>)` = the minimum value in the column.
+        * `lookup("MAXIMUM", <column>)` = the maximum value in the column.
+        * `lookup("FIRST", <column>)` = the first value in the column.
+        * `lookup("LAST", <column>)` = the last value in the column.
 
         Parameters:
             name (str): Name of a parameter.
@@ -467,111 +629,5 @@ class AsciiTable():
 
     # Alternative name for the lookup function, primarily for when used in templates.
     TABLE_VALUE = lookup
-
-##########################################################################################
-# Template support functions
-##########################################################################################
-
-def ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape=''):
-    """Analyze the given table and define it as the default table for subsequent calls to
-    `TABLE_VALUE()` inside a template.
-
-    Parameters:
-        filepath (str or pathlib.Path):
-            The path to an ASCII table file.
-        records (list[bytes]):
-            The table file content as a sequence of byte strings. If the list is empty,
-            the file will be read; otherwise, this content is used instead of reading the
-            file.
-        separator (str, optional):
-            The column separator character, typically a comma. Other options are
-            semicolon, tab, and vertical bar ("|").
-        crlf (bool, optional):
-            True to raise an error if the line terminators are not <CR><LF>; False to
-            raise an error if the line terminator is not <LF> alone; None to accept either
-            line terminator.
-        escape (str, optional):
-            The character to appear before a quote ('"') if the quote is to be taken as a
-            literal part of the string. Options are '"' for a doubled quote and '\\' for a
-            backslash. If not specified, quote characters inside quoted strings are
-            disallowed.
-    """
-
-    AsciiTable._LATEST_ASCII_TABLE = None
-
-    logger = get_logger()
-    logger.debug('Analyzing ASCII table', filepath)
-    try:
-        _ = AsciiTable(filepath, separator=separator, crlf=crlf, escape=escape)
-    except Exception as err:
-        logger.exception(err)
-
-
-def TABLE_VALUE(name, column=0):
-    """Lookup function for information about the table analyzed in the most recent call to
-    ANALYZE_TABLE().
-
-    These are all the options; a column is indicated by an integer starting from zero:
-
-    * `TABLE_VALUE("PATH")` = full path to the table file.
-    * `TABLE_VALUE("BASENAME")` = basename of the table file.
-    * `TABLE_VALUE("ROWS")` = number of rows.
-    * `TABLE_VALUE("ROW_BYTES")` = bytes per row.
-    * `TABLE_VALUE("COLUMNS")` = number of columns.
-    * `TABLE_VALUE["TERMINATORS"] = length of terminator: 1 for <LF>, 2 for <CR><LF>.
-    * `TABLE_VALUE("WIDTH", <column>)` = width of the column in bytes.
-    * `TABLE_VALUE("PDS3_FORMAT", <column>)` = a string containing the format for PDS3,
-      e.g., `I7`, `A23`, or `F12.4`.
-    * `TABLE_VALUE("PDS4_FORMAT", <column>)` = a string containing the format for PDS4,
-      e.g., `%7d`, `%23s`, or `%12.4f`.
-    * 'TABLE_VALUE("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of `CHARACTER`,
-      `ASCII_REAL`, `ASCII_INTEGER`, or `TIME`.
-    * 'TABLE_VALUE("PDS4_DATA_TYPE", <column>)` = PDS3 data type, e.g.,
-      `ASCII_Text_Preserved`, `ASCII_Real`, or `ASCII_Date_YMD`.
-    * 'TABLE_VALUE("QUOTES", <column>)` = number of quotes before field value, 0 or 1.
-    * 'TABLE_VALUE("START_BYTE", <column>)` = start byte of column, starting from 1.
-    * 'TABLE_VALUE("BYTES", <column>)` = number of bytes in column, excluding quotes.
-    * 'TABLE_VALUE("VALUES", <column>)` = a list of all the values found in the column.
-    * 'TABLE_VALUE("MINIMUM", <column>)` = the minimum value in the column.
-    * 'TABLE_VALUE("MAXIMUM", <column>)` = the maximum value in the column.
-    * 'TABLE_VALUE("FIRST", <column>)` = the first value in the column.
-    * 'TABLE_VALUE("LAST", <column>)` = the last value in the column.
-
-    Parameters:
-        name (str): Name of a parameter.
-        column (int, optional): The index of the column, starting from zero.
-
-    Returns:
-        (str, int, float, or bool): The value of the specified parameter as inferred from
-            the ASCII table.
-
-    Raises:
-        TemplateAbort: If no ASCII Table was successfully analyzed.
-        TemplateError: A wrapper for any other exception.
-    """
-
-    table = AsciiTable._LATEST_ASCII_TABLE
-    if not table:
-        raise TemplateAbort('No ASCII table has been analyzed')
-
-    try:
-        return table.lookup(name, column)
-    except Exception as err:
-        raise TemplateError(err) from err
-
-
-def _latest_ascii_table():
-    """The most recently defined AsciiTable object. Provided for global access."""
-
-    return AsciiTable._LATEST_ASCII_TABLE
-
-
-def _reset_ascii_table():
-    """Reset the most recently defined AsciiTable object to None, for debugging."""
-
-    AsciiTable._LATEST_ASCII_TABLE = None
-
-
-PdsTemplate.define_global('ANALYZE_TABLE', ANALYZE_TABLE)
 
 ##########################################################################################

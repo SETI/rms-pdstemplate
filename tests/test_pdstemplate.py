@@ -11,7 +11,9 @@ import tempfile
 import unittest
 
 import pdslogger
-from pdstemplate import PdsTemplate, TemplateError, _utils
+from filecache import FCPath
+
+from pdstemplate import PdsTemplate, TemplateError
 
 
 class Test_Substitutions(unittest.TestCase):
@@ -301,7 +303,7 @@ class Test_Predefined(unittest.TestCase):
         T = PdsTemplate('t.xml', content='$RAISE(ValueError,"This is the ValueError")$\n')
         V = '[[[ValueError(This is the ValueError) at t.xml:1]]]\n'
         self.assertEqual(T.generate({}), V)
-        self.assertEqual(T._error_count, 1)
+        self.assertEqual(T.error_count, 1)
 
         V = 'This is the ValueError at t.xml:1'
         try:
@@ -309,7 +311,7 @@ class Test_Predefined(unittest.TestCase):
             self.assertTrue(False, "This should have raised an exception but didn't")
         except ValueError as e:
             self.assertEqual(str(e), V)
-            self.assertEqual(T._error_count, 1)
+            self.assertEqual(T.error_count, 1)
 
         # REPLACE_NA
         T = PdsTemplate('t.xml', content='<q>$REPLACE_NA(test,"Not applicable")$</q>\n')
@@ -964,7 +966,7 @@ est laborum.
             T = PdsTemplate(test_template_file)
             answer = T.write({}, test_output_file)
             self.assertEqual(answer, (1, 0))
-            self.assertEqual(T._error_count, 1)
+            self.assertEqual(T.error_count, 1)
             with open(test_output_file, 'r') as fp:
                 result = fp.read()
 
@@ -982,7 +984,7 @@ est laborum.
                 self.assertTrue(False, "This should have raised an exception but didn't")
             except ValueError as e:
                 self.assertEqual(str(e), 'This is the ValueError at raises_template.txt:1')
-                self.assertEqual(T._error_count, 1)
+                self.assertEqual(T.error_count, 1)
 
         # Test writing files with different terminators
 
@@ -1080,7 +1082,7 @@ class Test_include_dirs(unittest.TestCase):
         PdsTemplate.get_logger().add_handler(pdslogger.NULL_HANDLER)
 
         try:
-            _utils._INCLUDE_DIRS = None
+            PdsTemplate._GETENV_INCLUDE_DIRS = None
             original = os.getenv('PDSTEMPLATE_INCLUDES')
             os.environ['PDSTEMPLATE_INCLUDES'] = '.:foo:bar'
 
@@ -1093,7 +1095,7 @@ class Test_include_dirs(unittest.TestCase):
             self.assertEqual(dirs, ['prefix', 'what', 'ever', '.', 'foo', 'bar'])
 
         finally:
-            _utils._INCLUDE_DIRS = None
+            PdsTemplate._GETENV_INCLUDE_DIRS = None
             if original is not None:
                 os.environ['PDSTEMPLATE_INCLUDES'] = original
 
@@ -1123,3 +1125,21 @@ class Test_Includes(unittest.TestCase):
         self.assertEqual(label, answer)
 
         PdsTemplate.get_logger().remove_all_handlers()
+
+        try:
+            PdsTemplate._GETENV_INCLUDE_DIRS = None
+            original = os.getenv('PDSTEMPLATE_INCLUDES')
+            os.environ['PDSTEMPLATE_INCLUDES'] = '.:foo:bar'
+            self.assertIsNone(PdsTemplate._GETENV_INCLUDE_DIRS)
+            dirs = [str(d).replace('\\', '/') for d in T._include_dirs()]
+            self.assertEqual(dirs, [str(test_file_dir).replace('\\', '/'), '.',
+                                    'foo', 'bar'])
+
+            PdsTemplate._GETENV_INCLUDE_DIRS = None
+            del os.environ['PDSTEMPLATE_INCLUDES']
+            self.assertEqual(T._include_dirs(), [FCPath(test_file_dir)])
+
+        finally:
+            PdsTemplate._GETENV_INCLUDE_DIRS = None
+            if original is not None:
+                os.environ['PDSTEMPLATE_INCLUDES'] = original

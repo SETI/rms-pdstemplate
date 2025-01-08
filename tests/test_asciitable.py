@@ -6,6 +6,8 @@ import pathlib
 import sys
 import unittest
 
+from filecache import FCPath
+
 from pdstemplate import PdsTemplate, TemplateError
 from pdstemplate.asciitable import AsciiTable, ANALYZE_TABLE, TABLE_VALUE
 from pdstemplate.asciitable import _latest_ascii_table, _reset_ascii_table
@@ -23,11 +25,11 @@ class Test_AsciiTable(unittest.TestCase):
         path = test_file_dir / 'COVIMS_0094_index.tab'
         table = AsciiTable(path)
         self.assertIs(_latest_ascii_table(), table)
-        self.assertEqual(table.filepath, path)
+        self.assertEqual(table.filepath, FCPath(path))
 
         self.assertIn('TABLE_VALUE', PdsTemplate._PREDEFINED_FUNCTIONS)
 
-        self.assertEqual(TABLE_VALUE('PATH'), str(path))
+        self.assertEqual(TABLE_VALUE('PATH'), str(path).replace('\\', '/'))
         self.assertEqual(TABLE_VALUE('BASENAME'), path.name)
         self.assertEqual(TABLE_VALUE('ROWS'), 1711)
         self.assertEqual(TABLE_VALUE('COLUMNS'), 74)
@@ -137,45 +139,45 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertRaises(TemplateError, AsciiTable, path, records)
 
         # More data types
-        table = AsciiTable(path, records=[b'2017-09-14T19:58:37.608Z\n'])
+        table = AsciiTable(path, content=[b'2017-09-14T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_YMD_UTC')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608Z\n'])
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_DOY_UTC')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608\n'])
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_DOY')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608Z\n'])
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_DOY_UTC')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608 \n',
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608 \n',
                                           b'2017-009T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_DOY')
 
-        table = AsciiTable(path, records=[b'2017-09-14T19:58:37.608Z\n',
+        table = AsciiTable(path, content=[b'2017-09-14T19:58:37.608Z\n',
                                           b'2017-09-14T19:58:37.608 \n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_YMD')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608Z  \n',
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608Z  \n',
                                           b'2017-09-14T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time_UTC')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608   \n',
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608   \n',
                                           b'2017-09-14T19:58:37.608Z\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time')
 
-        table = AsciiTable(path, records=[b'2017-009T19:58:37.608Z \n',
+        table = AsciiTable(path, content=[b'2017-009T19:58:37.608Z \n',
                                           b'2017-09-14T19:58:37.608\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_Time')
 
-        table = AsciiTable(path, records=[b'2017-09-14\n'])
+        table = AsciiTable(path, content=[b'2017-09-14\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_YMD')
 
-        table = AsciiTable(path, records=[b'2017-009\n'])
+        table = AsciiTable(path, content=[b'2017-009\n'])
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Date_DOY')
 
-        table = AsciiTable(path, records=[b'123x\n'])
+        table = AsciiTable(path, content=[b'123x\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'CHARACTER')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Text_Preserved')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'A4')
@@ -184,7 +186,7 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertEqual(TABLE_VALUE('START_BYTE', 0), 1)
         self.assertEqual(TABLE_VALUE('QUOTES', 0), 0)
 
-        table = AsciiTable(path, records=[b'abcdef\n', b'"ABCD"\n'])
+        table = AsciiTable(path, content=[b'abcdef\n', b'"ABCD"\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'CHARACTER')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Text_Preserved')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'A6')
@@ -194,61 +196,61 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertEqual(TABLE_VALUE('QUOTES', 0), 0)
         self.assertEqual(TABLE_VALUE('LAST', 0), '"ABCD"')
 
-        table = AsciiTable(path, records=[b'   +1.E32\n', b'12345.678\n'])
+        table = AsciiTable(path, content=[b'   +1.E32\n', b'12345.678\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Real')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), '"F9.3"')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', 0), '%9.3f')
 
-        table = AsciiTable(path, records=[b'   +1.E32\n', b'12345.678\n'])
+        table = AsciiTable(path, content=[b'   +1.E32\n', b'12345.678\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Real')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), '"F9.3"')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', 0), '%9.3f')
 
         # Escaped quotes and quoted commas
-        table = AsciiTable(path, records=[b'"123,456",789\n'])
+        table = AsciiTable(path, content=[b'"123,456",789\n'])
         self.assertEqual(TABLE_VALUE('COLUMNS'), 2)
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'CHARACTER')
 
-        self.assertRaises(TemplateError, AsciiTable, path, records=[b'"abc","def\n'])
+        self.assertRaises(TemplateError, AsciiTable, path, content=[b'"abc","def\n'])
 
-        table = AsciiTable(path, records=[b'"123\\",456",789\n'], escape='\\')
+        table = AsciiTable(path, content=[b'"123\\",456",789\n'], escape='\\')
         self.assertEqual(TABLE_VALUE('COLUMNS'), 2)
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'CHARACTER')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'A9')
         self.assertEqual(TABLE_VALUE('QUOTES', 0 ), 1)
 
-        table = AsciiTable(path, records=[b'"123"",456",789\n'], escape='"')
+        table = AsciiTable(path, content=[b'"123"",456",789\n'], escape='"')
         self.assertEqual(TABLE_VALUE('COLUMNS'), 2)
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'CHARACTER')
         self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'A9')
         self.assertEqual(TABLE_VALUE('QUOTES', 0), 1)
 
-        table = AsciiTable(path, records=[b'"12345678\\""\n',
+        table = AsciiTable(path, content=[b'"12345678\\""\n',
                                           b'"12345678  "\n',
                                           b'",,,,,,\\",,"\n'], escape='\\')
         self.assertEqual(TABLE_VALUE('FIRST', 0), '12345678"')
         self.assertEqual(TABLE_VALUE('LAST', 0), ',,,,,,",,')
 
-        table = AsciiTable(path, records=[b'"123"\n',
+        table = AsciiTable(path, content=[b'"123"\n',
                                           b'abcde\n'])
         self.assertEqual(TABLE_VALUE('FIRST', 0), '"123"')
         self.assertEqual(TABLE_VALUE('LAST', 0), 'abcde')
 
         # Alt separators
-        table = AsciiTable(path, records=[b'"123|456"|789\n'], separator='|')
+        table = AsciiTable(path, content=[b'"123|456"|789\n'], separator='|')
         self.assertEqual(TABLE_VALUE('FIRST', 0), '123|456')
 
-        table = AsciiTable(path, records=[b'"123\t456"\t789\n'], separator='\t')
+        table = AsciiTable(path, content=[b'"123\t456"\t789\n'], separator='\t')
         self.assertEqual(TABLE_VALUE('FIRST', 0), '123\t456')
 
-        table = AsciiTable(path, records=[b'"123;456";789\n'], separator=';')
+        table = AsciiTable(path, content=[b'"123;456";789\n'], separator=';')
         self.assertEqual(TABLE_VALUE('FIRST', 0), '123;456')
 
         # ANALYZE_TABLE
         ANALYZE_TABLE(str(path))
-        self.assertEqual(TABLE_VALUE('PATH'), str(path))
+        self.assertEqual(TABLE_VALUE('PATH'), str(path).replace('\\', '/'))
         self.assertEqual(TABLE_VALUE('BASENAME'), path.name)
         self.assertEqual(TABLE_VALUE('ROWS'), 1711)
         self.assertEqual(TABLE_VALUE('COLUMNS'), 74)

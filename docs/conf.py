@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 project = 'pdstemplate'
-copyright = '2024, PDS Ring-Moon Systems Node'
+copyright = '2024-2025, PDS Ring-Moon Systems Node'
 author = 'PDS Ring-Moon Systems Node'
 release = '2024'
 
@@ -24,8 +24,6 @@ extensions = ['myst_parser', 'sphinx.ext.autodoc', 'sphinx.ext.napoleon',
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
-language = 'Python'
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

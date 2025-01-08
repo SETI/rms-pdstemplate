@@ -3,13 +3,14 @@
 ##########################################################################################
 """Class used internally during template evaluation."""
 
-import pathlib
 import re
 from collections import deque, namedtuple
 from xml.sax.saxutils import escape
 
-from ._utils import TemplateError, TemplateAbort, _RaisedException
-from ._utils import get_logger, _NOESCAPE_FLAG
+from filecache import FCPath
+
+from .utils import TemplateError, TemplateAbort, _RaisedException
+from .utils import get_logger, _NOESCAPE_FLAG
 
 # namedtuple class definition
 #
@@ -290,7 +291,7 @@ class _PdsBlock(object):
             content (str): The entire content of the template as a single string with <LF>
                 line terminators.
             template (PdsTemplate): The PdsTemplate object.
-            filepath (str or pathlib.Path, optional): Path to the source file. If not
+            filepath (str, Path, or FCPath, optional): Path to the source file. If not
                 specified, template.template_path is used.
 
         Returns:
@@ -365,7 +366,7 @@ class _PdsBlock(object):
                 of the template.
         """
 
-        filepath = pathlib.Path(filepath) if filepath else template.template_path
+        filepath = FCPath(filepath) if filepath else template.template_path
 
         (header, arg, line, body) = sections[0]
         if header.startswith('$ONCE'):
@@ -490,7 +491,7 @@ class _PdsOnceBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -510,7 +511,7 @@ class _PdsOnceBlock(_PdsBlock):
         self.arg = arg
         self.name = ''
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.sub_blocks = deque()
@@ -577,7 +578,7 @@ class _PdsNoteBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -589,7 +590,7 @@ class _PdsNoteBlock(_PdsBlock):
         self.header = header
         self.arg = arg
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.sub_blocks = deque()
@@ -651,7 +652,7 @@ class _PdsForBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -662,7 +663,7 @@ class _PdsForBlock(_PdsBlock):
         (header, arg, line, body) = sections.popleft()
         self.header = header
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.template = template
@@ -754,7 +755,7 @@ class _PdsIfBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -767,7 +768,7 @@ class _PdsIfBlock(_PdsBlock):
         self.arg = arg
         self.name = ''
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.template = template
@@ -856,7 +857,7 @@ class _PdsElseBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -868,7 +869,7 @@ class _PdsElseBlock(_PdsBlock):
         self.header = header
         self.arg = arg
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.template = template
@@ -904,7 +905,7 @@ class _PdsIncludeBlock(_PdsBlock):
                 sections off the top of the deque as are needed to complete this block.
             template (PdsTemplate):
                 The object being converted into _PdsBlocks.
-            filepath (str or pathlib.Path, optional):
+            filepath (str, Path, or FCPath, optional):
                 The file containing this $ONCE block; usually the file path of `template`
                 but it could be that of an $INCLUDE file.
 
@@ -917,7 +918,7 @@ class _PdsIncludeBlock(_PdsBlock):
         self.arg = arg
         self.name = ''
         self.line = line
-        self.filepath = pathlib.Path(filepath) if filepath else template.template_path
+        self.filepath = FCPath(filepath) if filepath else template.template_path
         self.body = body
         self.preprocess_body()
         self.sub_blocks = deque()
@@ -976,9 +977,9 @@ class _PdsIncludeBlock(_PdsBlock):
         """The content of the specified include file.
 
         Parameters:
-            filename (str or pathlib.Path): The name or path to the file to include.
-            include_dirs (list[pathlib.Path): Ordered list of directories in which to look
-                for the named file.
+            filename (str, Path, or FCPath): The name or path to the file to include.
+            include_dirs (list[Path or FCPath): Ordered list of directories in which to
+                look for the named file.
 
         Returns:
             str: The content of the file as a single string containing "\n" line
@@ -989,16 +990,21 @@ class _PdsIncludeBlock(_PdsBlock):
             OSError: Any subclass of OSError explaining why the file could not be read.
         """
 
-        # Find the file
-        filepath = pathlib.Path(filename)       # Maybe it's a complete path already
-        if not filepath.exists():               # Otherwise, search the directories
-            for dir in include_dirs:
-                test_filepath = dir / filename
-                if test_filepath.exists():
-                    filepath = test_filepath
-                    break
+        # First try to read the file directly
+        filepath = FCPath(filename)
+        try:
+            return filepath.read_text()     # convert <CR><LF> to <LF>
+        except FileNotFoundError:
+            pass
 
-        # Read the file or force a FileNotFoundError
-        return filepath.read_text()             # Convert <CR><LF> to <LF>
+        # Try each directory in turn
+        for dir in include_dirs:
+            try:
+                return (dir / filename).read_text()
+            except (FileNotFoundError, NotImplementedError):
+                pass
+
+        # On failure, re-raise the first exception
+        return filepath.read_text()
 
 ##########################################################################################
