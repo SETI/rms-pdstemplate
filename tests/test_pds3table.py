@@ -60,8 +60,8 @@ class Test_Pds3Table(unittest.TestCase):
         self.assertEqual(LABEL_VALUE('BASENAME'), path.name)
         self.assertEqual(LABEL_VALUE('RECORD_TYPE'), 'FIXED_LENGTH')
         self.assertEqual(LABEL_VALUE('INTERCHANGE_FORMAT'), 'ASCII')
-        self.assertEqual(LABEL_VALUE('TABLE_PATH'), str(test_file_dir
-                                                        / 'COVIMS_0094_index.tab'))
+        self.assertEqual(LABEL_VALUE('TABLE_PATH'),
+                         str(test_file_dir / 'COVIMS_0094_index.tab').replace('\\', '/'))
         self.assertEqual(LABEL_VALUE('TABLE_BASENAME'), 'COVIMS_0094_index.tab')
 
         ANALYZE_TABLE(_latest_pds3_table().get_table_path())
