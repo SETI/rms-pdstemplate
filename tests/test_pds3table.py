@@ -19,12 +19,22 @@ from pdstemplate import PdsTemplate, get_logger, TemplateError
 from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
                                   LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
 from pdstemplate.pds3table import pds3_table_preprocessor, _latest_pds3_table
-from pdstemplate.asciitable import AsciiTable
+from pdstemplate.asciitable import AsciiTable, _reset_ascii_table
 
 
 class Test_Pds3Table(unittest.TestCase):
 
     def runTest(self):
+        # Reset to starting point in case test_asciitable failed
+        try:
+            del PdsTemplate._PREDEFINED_FUNCTIONS['ANALYZE_TABLE']
+        except KeyError:
+            pass
+        try:
+            del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
+        except KeyError:
+            pass
+        _reset_ascii_table()
 
         # No logging to stdout
         _LOGGER = get_logger()
@@ -46,7 +56,7 @@ class Test_Pds3Table(unittest.TestCase):
         self.assertEqual(OLD_LABEL_VALUE('COLUMNS'), 61)
         self.assertEqual(OLD_LABEL_VALUE('ROW_BYTES'), 1089)
 
-        self.assertEqual(LABEL_VALUE('PATH'), str(path))
+        self.assertEqual(LABEL_VALUE('PATH'), str(path).replace('\\', '/'))
         self.assertEqual(LABEL_VALUE('BASENAME'), path.name)
         self.assertEqual(LABEL_VALUE('RECORD_TYPE'), 'FIXED_LENGTH')
         self.assertEqual(LABEL_VALUE('INTERCHANGE_FORMAT'), 'ASCII')
