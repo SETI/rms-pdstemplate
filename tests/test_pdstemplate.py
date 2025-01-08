@@ -1131,8 +1131,9 @@ class Test_Includes(unittest.TestCase):
             original = os.getenv('PDSTEMPLATE_INCLUDES')
             os.environ['PDSTEMPLATE_INCLUDES'] = '.:foo:bar'
             self.assertIsNone(PdsTemplate._GETENV_INCLUDE_DIRS)
-            dirs = [str(d) for d in T._include_dirs()]
-            self.assertEqual(dirs, [str(test_file_dir), '.', 'foo', 'bar'])
+            dirs = [str(d).replace('\\', '/') for d in T._include_dirs()]
+            self.assertEqual(dirs, [str(test_file_dir).replace('\\', '/'), '.',
+                                    'foo', 'bar'])
 
             PdsTemplate._GETENV_INCLUDE_DIRS = None
             del os.environ['PDSTEMPLATE_INCLUDES']

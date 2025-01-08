@@ -1120,7 +1120,7 @@ class PdsTemplate:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
         except AttributeError:  # pragma: no cover
             # Python < 3.11
-            utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
+            utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
         return utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     @staticmethod

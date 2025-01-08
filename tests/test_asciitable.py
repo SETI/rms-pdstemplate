@@ -29,7 +29,7 @@ class Test_AsciiTable(unittest.TestCase):
 
         self.assertIn('TABLE_VALUE', PdsTemplate._PREDEFINED_FUNCTIONS)
 
-        self.assertEqual(TABLE_VALUE('PATH'), str(path))
+        self.assertEqual(TABLE_VALUE('PATH'), str(path).replace('\\', '/'))
         self.assertEqual(TABLE_VALUE('BASENAME'), path.name)
         self.assertEqual(TABLE_VALUE('ROWS'), 1711)
         self.assertEqual(TABLE_VALUE('COLUMNS'), 74)
