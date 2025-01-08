@@ -9,6 +9,7 @@ description = "Class to generate PDS labels based on templates"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "rms-filecache",
     "rms-julian",
     "rms-pdslogger"
 ]

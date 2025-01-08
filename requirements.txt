@@ -4,7 +4,7 @@ myst-parser
 pytest
 rms-filecache
 rms-julian
-rms-pdslogger>=2.0.0
+rms-pdslogger>=3.0.0
 sphinx
 sphinxcontrib-napoleon
 sphinx-rtd-theme
