@@ -417,11 +417,9 @@ pre-processing, not before.
 
 # `pdstemplate.pds3table`
 
-`pds3table`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
-is a plug-in module to automate the generation and validation of PDS3 labels
+`pds3table` is a plug-in module to automate the generation and validation of PDS3 labels
 for ASCII tables. It works in concert with the
-`asciitable`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
-module, which analyzes
+`asciitable` module, which analyzes
 the content of ASCII table files. It is used by stand-alone program `tablelabel` to
 validate and repair existing PDS3 labels as well as to generate new labels; if
 `tablelabel` meets your needs, you can avoid any programming in Python.
@@ -602,11 +600,8 @@ preprocessor let you indicate whether to include `FORMATs`, `COLUMN_NUMBERs`, an
 
 # `pdstemplate.asciitable`
 
-`asciitable`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
-is a plug-in module to assist with the labeling of ASCII tables in PDS3 and PDS4. It
-supports the
-`pdstemplate.pds3table`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
-module and the `tablelabel` tool, and will also be used by
+`asciitable` is a plug-in module to assist with the labeling of ASCII tables in PDS3 and PDS4. It
+supports the `pdstemplate.pds3table` module and the `tablelabel` tool, and will also be used by
 a future `pds4table` tool. To import:
 
     import pdstemplate.asciitable
@@ -614,7 +609,7 @@ a future `pds4table` tool. To import:
 This import creates two new pds-defined functions, which can be accessed within any
 template.
 
-- `ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape='')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
+- `ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape='')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
   takes the path to an existing
   ASCII table and analyzes its content, inferring details about the content and formats of
   all the columns.
@@ -645,7 +640,7 @@ For example, consider a template that contains this content:
 
 
 The initial call to
-`ANALYZE_TABLE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
+`ANALYZE_TABLE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
 is embedded inside a `ONCE` directive
 because it returns no content. However, it reads the table file and assembles a database
 of what it has found. The subsequent calls to it can be used for multiple labels and each
