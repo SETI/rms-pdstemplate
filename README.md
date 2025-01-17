@@ -34,11 +34,11 @@ for other purposes.
 
 # Installation
 
-The `pdstemplate` module is available via the [`rms-pdstemplate`](https://pypi.org/project/rms-pdstemplate)
+The `pdstemplate` module is available via the `rms-pdstemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://pypi.org/project/rms-pdstemplate)
 package on PyPI and can be installed with:
 
 ```sh
-pip install rms-template
+pip install rms-pdstemplate
 ```
 
 # Getting Started
@@ -46,7 +46,7 @@ pip install rms-template
 The general procedure is as follows:
 
 1. Create a template object by calling the
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 constructor to read a template file:
 
         from pdstemplate import PdsTemplate
@@ -54,7 +54,7 @@ constructor to read a template file:
 
 2. Create a dictionary that contains the parameter values to use inside the label.
 3. Construct the label using the
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 method as follows:
 
         template.write(dictionary, label_file)
@@ -64,11 +64,10 @@ dictionary. Once the template has been constructed, steps 2 and 3 can be repeate
 number of times.
 
 Alternatively, you can obtain the content of a label without writing it to a file using
-[`generate()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
-method.
+`generate()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate).
 
-`pdstemplate` employs the RMS Node's [`rms-filecache`](https://pypi.org/project/rms-filecache)
-module and its [`FCPath`](https://rms-filecache.readthedocs.io/en/latest/module.html#filecache.file_cache_path.FCPath)
+`pdstemplate` employs the RMS Node's `rms-filecache`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://pypi.org/project/rms-filecache)
+module and its `FCPath`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-filecache.readthedocs.io/en/latest/module.html#filecache.file_cache_path.FCPath)
 class to support the handling of files at a website or in the cloud. You can refer to a
 remote file by URL and the `PdsTemplate` will treat it as if it were a local file.
 See filecache's [documentation](https://rms-filecache.readthedocs.io/en/latest/index.html)
@@ -80,9 +79,9 @@ Details of the `PdsTemplate` class are available in the [module documentation](h
 
 A template file will look generally like a label file, except for certain embedded
 expressions that will be replaced when the template's
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 or
-[`generate()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
+`generate()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
 method is called.
 
 ## Substitutions
@@ -217,18 +216,18 @@ Using the environment variable `PDSTEMPLATE_INCLUDES`, you can define one or mor
 directories that will be searched for a file to be included. If multiple directories are
 to be searched, they should be separated by colons. You can also specify one or more
 directories to search in the
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 constructor using the `includes` input parameter.
 
 Include files are handled somewhat differently from other headers. When `INCLUDE`
 references a file as a literal string rather than as an expression to evaluate, it is
 processed at the time that the
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 is constructed. However, if the
 filename is given as an expression, it is not evaluated until the
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 or
-[`generate()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
+`generate()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
 method is called for each label.
 
 ### NOTE and END_NOTE
@@ -250,93 +249,93 @@ are not included in the label::
 The following pre-defined functions can be used inside any expression in the template.
 
 
-- [`BASENAME(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BASENAME):
+- `BASENAME(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BASENAME):
   The basename of `filepath`, with leading directory path removed.
 
-- [`BOOL(value, true='true', false='false')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BOOL):
-  Return `true` if `value` evaluates to Boolean True; otherwise, return `false`.
+- `BOOL(value, true='true', false='false')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BOOL):
+  Return "true" if `value` evaluates to Boolean True; otherwise, return "false".
 
-- [`COUNTER(name, reset=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
+- `COUNTER(name, reset=False)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.COUNTER):
   The current value of a counter identified by `name`, starting at 1. If `reset` is True, the counter is reset to 0.
 
-- [`CURRENT_TIME(date_only=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_TIME):
+- `CURRENT_TIME(date_only=False)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_TIME):
   The current time in the local time zone as a string of the form
   "yyyy-mm-ddThh:mm:sss" if `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
-- [`CURRENT_ZULU(date_only=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_ZULU):
+- `CURRENT_ZULU(date_only=False)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.CURRENT_ZULU):
   The current UTC time as a string of the form "yyyy-mm-ddThh:mm:sssZ" if
   `date_only=False` or "yyyy-mm-dd" if `date_only=True`.
 
-- [`DATETIME(time, offset=0, digits=None)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME):
+- `DATETIME(time, offset=0, digits=None)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME):
   Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
   format with a trailing "Z". An optional `offset` in seconds can be applied. The
   returned string contains an appropriate number of decimal digits in the seconds
   field unless `digits` is specified explicitly. If `time` is "UNK", then "UNK" is
   returned.
 
-- [`DATETIME_DOY(time, offset=0, digits=None)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME_DOY):
+- `DATETIME_DOY(time, offset=0, digits=None)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DATETIME_DOY):
   Convert `time` as an arbitrary date/time string or TDB seconds to an ISO date
   of the form "yyyy-dddThh:mm:ss[.fff]Z". An optional `offset` in seconds can be
   applied. The returned string contains an appropriate number of decimal digits in
   the seconds field unless `digits` is specified explicitly. If `time` is "UNK",
   then "UNK" is returned.
 
-- [`DAYSECS(string)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DAYSECS):
+- `DAYSECS(string)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.DAYSECS):
   The number of elapsed seconds since the most recent midnight. `time` can be
   a date/time string, a time string, or TDB seconds.
 
-- [`FILE_BYTES(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_BYTES):
+- `FILE_BYTES(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_BYTES):
   The size in bytes of the file specified by `filepath`.
 
-- [`FILE_MD5(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_MD5):
+- `FILE_MD5(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_MD5):
   The MD5 checksum of the file specified by `filepath`.
 
-- [`FILE_RECORDS(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_RECORDS):
+- `FILE_RECORDS(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_RECORDS):
   The number of records in the the file specified by `filepath` if it is ASCII; 0
   if the file is binary.
 
-- [`FILE_TIME(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_TIME):
+- `FILE_TIME(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_TIME):
   The modification time in the local time zone of the file specified by `filepath`
   in the form "yyyy-mm-ddThh:mm:ss".
 
-- [`FILE_ZULU(filepath)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_ZULU):
+- `FILE_ZULU(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.FILE_ZULU):
   The UTC modification time of the the file specified by `filepath` in the form
   "yyyy-mm-ddThh:mm:ssZ".
 
-- [`GETENV(name, default='')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.GETENV):
+- `GETENV(name, default='')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.GETENV):
   The value of any environment variable.
 
-- [`LABEL_PATH()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LABEL_PATH):
+- `LABEL_PATH()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LABEL_PATH):
   The full directory path to the label file being written.
 
-- [`LOG(level, message, filepath='', force=False)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LOG):
+- `LOG(level, message, filepath='', force=False)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.LOG):
   Write a message to the current log.
 
-- [`NOESCAPE(text)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.NOESCAPE):
+- `NOESCAPE(text)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.NOESCAPE):
   If the template is XML, evaluated expressions are "escaped" to ensure that they
   are suitable for embedding in a PDS4 label. For example, ">" inside a string will
   be replaced by `&gt;`. This function prevents `text` from being escaped in the
   label, allowing it to contain literal XML.
 
-- [`QUOTE_IF(text)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.QUOTE_IF):
+- `QUOTE_IF(text)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.QUOTE_IF):
   Quote the given text if it requires quotes within a PDS3 label.
 
-- [`RAISE(exception, message)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
+- `RAISE(exception, message)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
   Raise an exception with the given class `exception` and the `message`.
 
-- [`REPLACE_NA(value, if_na, flag='N/A')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
+- `REPLACE_NA(value, if_na, flag='N/A')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
   Return `if_na` if `value` equals "N/A" (or `flag` if specified); otherwise, return `value`.
 
-- [`REPLACE_UNK(value, if_unk)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_UNK):
+- `REPLACE_UNK(value, if_unk)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_UNK):
   Return `if_unk` if `value` equals "UNK"; otherwise, return `value`.
 
-- [`TEMPLATE_PATH()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.TEMPLATE_PATH):
+- `TEMPLATE_PATH()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.TEMPLATE_PATH):
   The directory path to the template file.
 
-- [`VERSION_ID()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.VERSION_ID):
+- `VERSION_ID()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.VERSION_ID):
   Version ID of this module using two digits, e.g., "v1.0".
 
-- [`WRAP(left, right, text, preserve_single_newlines=True)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
+- `WRAP(left, right, text, preserve_single_newlines=True)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.WRAP):
   Wrap the given text to a specified indentation and width.
 
 These functions can also be used directly by the programmer; they are static functions
@@ -344,40 +343,40 @@ of class PdsTemplate.
 
 # Logging and Exception Handling
 
-`pdstemplate` employs the RMS Node's [`rms-pdslogger`](https://pypi.org/project/rms-pdslogger)
+`pdstemplate` employs the RMS Node's `rms-pdslogger`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://pypi.org/project/rms-pdslogger)
 module to handle logging. By default, the
-logger is a [`PdsLogger`](https://rms-pdslogger.readthedocs.io/en/latest/module.html#pdslogger.PdsLogger)
+logger is a `PdsLogger`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdslogger.readthedocs.io/en/latest/module.html#pdslogger.PdsLogger)
 object, although any `logging.Logger` object will work. See
 [`pdslogger`'s documentation](https://rms-pdslogger.readthedocs.io) for further details.
 
 You can override the default Logger using static method
-[`set_logger()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_logger).
+`set_logger()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_logger).
 You can also set the logging level ("info", "warning", "error", etc.) using
-[`set_log_level()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_log_level)
+`set_log_level()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_log_level)
 and can select among many log formatting options using
-[`set_log_format()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_log_format)
+`set_log_format()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.set_log_format)
 Use
-[`get_logger()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.get_logger)
+`get_logger()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.utils.get_logger)
 to obtain the current Logger.
 
 By default, exceptions during a call to
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 or
-[`generate()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
+`generate()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate)
 are handled as follows:
 
 1. They are written to the log.
 2. The expression that triggered the exception is replaced by the error text in the
-label, surrounded by `[[[` and `]]]` to make it easier to find.
+   label, surrounded by "[[[" and "]]]" to make it easier to find.
 3. The attributes `fatal_count`, `error_count`, and `warning_count` of the
-   [`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+   `PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
    object contain the number of messages logged by each category.
 4. The exception is otherwise suppressed.
 
 This behavior can be modified by calling method `raise_exceptions(True)` in the call to
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 or
-[`generate()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate);
+`generate()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.generate);
 in this case, the exception
 will be raised, label generation will stop, and the label will not be written.
 
@@ -401,7 +400,7 @@ where
 - `**kwargs` is for any additional keyword arguments to `func`.
 
 When you invoke the
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 constructor, one of the optional inputs is
 `preprocess`, which takes either a single function or a list of functions to apply after
 the `INCLUDE` pre-processor. For the first of these, the `args` and `kwargs` inputs can be
@@ -409,7 +408,7 @@ provided as additional inputs to the constructor. Subsequent pre-processors cann
 additional arguments; define them using lambda notation instead.
 
 Note that a
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 object has an attribute `content`, which contains the
 full content of the template after all pre-processing has been performed. You can examine
 this attribute to see the final result of all processing. Note also that when line numbers
@@ -418,10 +417,10 @@ pre-processing, not before.
 
 # `pdstemplate.pds3table`
 
-[`pds3table`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
+`pds3table`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
 is a plug-in module to automate the generation and validation of PDS3 labels
 for ASCII tables. It works in concert with the
-[`asciitable`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
+`asciitable`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
 module, which analyzes
 the content of ASCII table files. It is used by stand-alone program `tablelabel` to
 validate and repair existing PDS3 labels as well as to generate new labels; if
@@ -432,24 +431,24 @@ To import:
     import pdstemplate.pds3table
 
 Once imported, the following pre-defined functions become available for use within a
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate):
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate):
 
-- [`ANALYZE_PDS3_LABEL(labelpath, validate=True)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.ANALYZE_PDS3_LABEL):
+- `ANALYZE_PDS3_LABEL(labelpath, validate=True)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.ANALYZE_PDS3_LABEL):
   analyzes the content of a PDS3 label or template, gathering
   information about the names and other properties of its `TABLE` and `COLUMN` objects. Once
   it is called, the following functions become available.
-- [`ANALYZE_TABLE(filepath, separator=',', crlf=None, escape='')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
+- `ANALYZE_TABLE(filepath, separator=',', crlf=None, escape='')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
   (from `asciitable`) takes the path to an existing
   ASCII table and analyzes its content, inferring details about the content and formats of
   all the columns.
-- [`VALIDATE_PDS3_LABEL(hide_warnings=False, abort_on_error=True)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.VALIDATE_PDS3_LABEL):
+- `VALIDATE_PDS3_LABEL(hide_warnings=False, abort_on_error=True)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.VALIDATE_PDS3_LABEL):
   issues a warning message for any errors found in the label
   or template. Optionally, it can abort the generation of the label if it encounters an
   irrecoverable incompatibility with the ASCII table.
-- [`LABEL_VALUE(name, column=0)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE):
+- `LABEL_VALUE(name, column=0)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE):
   returns correct and valid PDS3 values for many of the attributes of
   PDS3 TABLE and COLUMN objects, based on its analysis of the table.
-- [`OLD_LABEL_VALUE(name, column=0)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.OLD_LABEL_VALUE):
+- `OLD_LABEL_VALUE(name, column=0)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.OLD_LABEL_VALUE):
   returns the current (although possibly incorrect or missing)
   values for many of the same PDS3 `TABLE` and `COLUMN` attributes.
 
@@ -477,14 +476,14 @@ For example, consider a template that contains this content:
     ...
 
 The initial calls to
-[`ANALYZE_TABLE()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
+`ANALYZE_TABLE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_TABLE)
 and
-[`ANALYZE_PDS3_LABEL()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.ANALYZE_PDS3_LABEL)
+`ANALYZE_PDS3_LABEL()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.ANALYZE_PDS3_LABEL)
 are
 embedded inside a `ONCE()` directive because they return no content. The first call
 analyzes the content and structure of the ASCII table, and the second analyzes the
 template. The subsequent calls to
-[`LABEL_VALUE()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE)
+`LABEL_VALUE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE)
 fill in the correct values for the specified quantities.
 
 Optionally, you could include this as the third line in the template::
@@ -496,13 +495,13 @@ currently in the template.
 
 This module also provides a pre-processor, which can be used to validate or repair an
 exising PDS3 label. The function
-[`pds3_table_preprocessor`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.pds3_table_preprocessor),
+`pds3_table_preprocessor`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.pds3_table_preprocessor),
 when used as the `preprocess` input to the
-[`PdsTemplate`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
+`PdsTemplate`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate)
 constructor, transforms an
 existing PDS3 label into a new template by replacing all needed `TABLE` and `COLUMN`
 attributes with calls to
-[`LABEL_VALUE()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE).
+`LABEL_VALUE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE).
 The effect is that when the label is
 generated, it is guaranteed to contain correct information where the earlier label might
 have been incorrect. In this case, your program would look something like this:
@@ -515,7 +514,7 @@ have been incorrect. In this case, your program would look something like this:
     template.write({}, label_path, ...)
 
 The constructor invokes
-[`pds3_table_preprocessor`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.pds3_table_preprocessor)
+`pds3_table_preprocessor`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.pds3_table_preprocessor)
 to transform the label into a
 template. You can use the `kwargs` input dictionary to provide inputs to the
 pre-processor, such as adding a requirement that each column contain `FORMAT`,
@@ -523,7 +522,7 @@ pre-processor, such as adding a requirement that each column contain `FORMAT`,
 to be handled.
 
 Afterward, the call to the template's
-[`write()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
+`write()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.write)
 method will
 validate the label and/or write a new label, depending on its input parameters.
 
@@ -587,7 +586,7 @@ template's content after pre-processing. Its value is this:
 
 The `TABLE` and `COLUMN` attributes defining table format and structure have been replaced by
 calls to
-[`LABEL_VALUE()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE),
+`LABEL_VALUE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table.LABEL_VALUE),
 which will provide the correct value whether or not the
 value in the original label was correct. Also, `COLUMN_NUMBER` and `FORMAT` have been added to
 the COLUMN object because of the pre-processor inputs `numbers=True` and `formats=True`.
@@ -603,10 +602,10 @@ preprocessor let you indicate whether to include `FORMATs`, `COLUMN_NUMBERs`, an
 
 # `pdstemplate.asciitable`
 
-[`asciitable`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
+`asciitable`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable)
 is a plug-in module to assist with the labeling of ASCII tables in PDS3 and PDS4. It
 supports the
-[`pdstemplate.pds3table`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
+`pdstemplate.pds3table`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.pds3table)
 module and the `tablelabel` tool, and will also be used by
 a future `pds4table` tool. To import:
 
@@ -615,11 +614,11 @@ a future `pds4table` tool. To import:
 This import creates two new pds-defined functions, which can be accessed within any
 template.
 
-- [`ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape='')`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
+- `ANALYZE_TABLE(filepath, *, separator=',', crlf=None, escape='')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
   takes the path to an existing
   ASCII table and analyzes its content, inferring details about the content and formats of
   all the columns.
-- [`TABLE_VALUE(name, column=0)`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.TABLE_VALUE)
+- `TABLE_VALUE(name, column=0)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.TABLE_VALUE)
   returns information about the content of the table for use within
   the label to be generated.
 
@@ -646,7 +645,7 @@ For example, consider a template that contains this content:
 
 
 The initial call to
-[`ANALYZE_TABLE()`](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
+`ANALYZE_TABLE()`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.asciitable.ANALYZE_PDS3_LABEL)
 is embedded inside a `ONCE` directive
 because it returns no content. However, it reads the table file and assembles a database
 of what it has found. The subsequent calls to it can be used for multiple labels and each
