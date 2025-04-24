@@ -221,6 +221,8 @@ class AsciiTable():
         # Read the file if necessary
         if not content:
             content = self.filepath.read_bytes()
+        if not content:
+            raise TemplateAbort('Table file is empty', self.filepath)
 
         # Identify the line terminator and validate
         try:
@@ -267,7 +269,7 @@ class AsciiTable():
 
             # If the record was valid, every even-numbered item will be blank and also
             # the second-to last item
-            if not all(p == b'' for p in parts[::2]) or parts[-2] != b'':
+            if not (all(p == b'' for p in parts[::2]) and parts[-2] == b''):
                 raise TemplateAbort(f'Invalid use of quotes in record {recno+1}')
 
             columns = parts[1:-2:2]
@@ -370,14 +372,10 @@ class AsciiTable():
         length = max(fmt[2] for fmt in formats)     # use longest length
 
         # Handle "E" and "F", giving preference to "F", using longest precision
-        if types in {'E', 'F', 'EF'}:
-            prec = max(fmt[3] for fmt in formats)
-            return ('F' if 'F' in types else 'E', 0, length, prec)
-
-        # Handle "I" combined with "E" and/or "F"
-        if types in {'EI', 'FI', 'EFI'}:
-            prec = max(fmt[3] for fmt in formats if fmt[0] != 'I')
-            return ('F' if 'F' in types else 'E', 0, length, prec)
+        if types in {'E', 'F', 'EF', 'EI', 'FI', 'EFI'}:
+            letter = 'F' if 'F' in types else 'E'
+            prec = max(fmt[3] for fmt in formats if fmt[0] == letter)
+            return (letter, 0, length, prec)
 
         # Handle "D" and/or "T", possibly combined with "A"
         if types in {'D', 'T', 'DT'}:
@@ -500,8 +498,7 @@ class AsciiTable():
         * `lookup["TERMINATORS"]` = length of terminator: 1 for <LF>, 2 for <CR><LF>.
         * `lookup("WIDTH", <column>)` = width of the column in bytes.
         * `lookup("PDS3_FORMAT", <column>)` = a string containing the format for PDS3,
-          e.g.,"I7", "A23", or "F12.4". If it contains a period, it is surrounded by
-          quotes.
+          e.g.,"I7", "A23", or "F12.4".
         * `lookup("PDS4_FORMAT", <column>)` = a string containing the format for PDS4,
           e.g., "%7d", "%23s", or "%12.4f".
         * `lookup("PDS3_DATA_TYPE", <column>)` = PDS3 data type, one of "CHARACTER",
@@ -544,7 +541,7 @@ class AsciiTable():
             case 'PDS3_FORMAT':
                 fmt = self._formats[column]
                 if fmt[0] in 'eEF':
-                    return f'"{fmt[0]}{fmt[2]}.{fmt[3]}"'
+                    return f'{fmt[0]}{fmt[2]}.{fmt[3]}'
                 elif fmt[0] == 'I':
                     return f'I{fmt[2]}'
                 else:

@@ -33,3 +33,11 @@
     :show-inheritance:
     :exclude-members: __dict__, __hash__, __module__, __weakref__
 
+.. automodule:: pdstemplate.pds3_syntax_checker
+    :member-order: bysource
+    :members:
+    :undoc-members:
+    :special-members:
+    :show-inheritance:
+    :exclude-members: __dict__, __hash__, __module__, __weakref__
+

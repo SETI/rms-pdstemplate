@@ -248,7 +248,6 @@ are not included in the label::
 
 The following pre-defined functions can be used inside any expression in the template.
 
-
 - `BASENAME(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.BASENAME):
   The basename of `filepath`, with leading directory path removed.
 
@@ -322,6 +321,9 @@ The following pre-defined functions can be used inside any expression in the tem
 
 - `RAISE(exception, message)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RAISE):
   Raise an exception with the given class `exception` and the `message`.
+
+- `RECORD_BYTES(filepath)`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.RECORD_BYTES):
+  The maximum number of bytes in any record of the file specified by `filepath`, including terminators.
 
 - `REPLACE_NA(value, if_na, flag='N/A')`[![image](https://raw.githubusercontent.com/SETI/rms-pdstemplate/main/icons/link.png)](https://rms-pdstemplate.readthedocs.io/en/latest/module.html#pdstemplate.PdsTemplate.REPLACE_NA):
   Return `if_na` if `value` equals "N/A" (or `flag` if specified); otherwise, return `value`.
@@ -703,8 +705,8 @@ for full information:
                             integer, float, or quoted string.
       -e                    Format values involving an exponential using lower case "e"
       -E                    Format values involving an exponential using upper case "E"
-      --nobackup, -B        If a file is repaired, do not save a backup of an existing file.
-                            Otherwise, an existing file is renamed with a suffix identifying
+      --nobackup, -B        If a label is repaired, do not save a backup of an existing label.
+                            Otherwise, an existing label is renamed with a suffix identifying
                             its original creation date and time.
       --quiet, -q           Do not log to the terminal.
       --log, -l             Save a log file of warnings and steps performed. The log file will
@@ -712,3 +714,31 @@ for full information:
                             instead of ".lbl".
       --debug               Include "debug" messages in the log.
       --timestamps          Include a timestamp in each log record.
+
+# quicklabel
+
+This is a stand-alone program that can be used to create a label for a file from a
+template. Type:
+
+    quicklabel --help
+
+for full information:
+
+    usage: quicklabel [-h] [--template TEMPLATE] [--dict [DICT ...]] [--nobackup] [path ...]
+    
+    quicklabel: Create a PDS3 label for an existing file given a template.
+    
+    positional arguments:
+      path                  Path to one or more files to label.
+    
+    options:
+      -h, --help            show this help message and exit
+      --template TEMPLATE, -t TEMPLATE
+                            Path to the template file.
+      --dict [DICT ...], -d [DICT ...]
+                            One or more keyword definitions of the form "name=value", which
+                            will be used when the label is generated. Each value must be an
+                            integer, float, or quoted string.
+      --nobackup, -B        Do not save a backup of an existing label. Otherwise, an existing
+                            label is renamed with a suffix identifying its original creation
+                            date and time.
