@@ -248,7 +248,8 @@ def LABEL_VALUE(name, column=0):
     * `LABEL_VALUE("START_BYTE", <column>)`
     * `LABEL_VALUE("BYTES", <column>)`
     * `LABEL_VALUE("COLUMN_NUMBER", <column>)`
-    * `LABEL_VALUE("FORMAT", <column>)` (quoted if it contains a period)
+    * `LABEL_VALUE("FORMAT", <column>)`
+    * `LABEL_VALUE("UNIT", <column>)`
     * `LABEL_VALUE("MINIMUM_VALUE", <column>)`
     * `LABEL_VALUE("MAXIMUM_VALUE", <column>)`
     * `LABEL_VALUE("DERIVED_MINIMUM", <column>)`
@@ -329,7 +330,8 @@ PdsTemplate.define_global('ANALYZE_PDS3_LABEL', ANALYZE_PDS3_LABEL)
 ##########################################################################################
 
 def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
-                            formats=False, minmax=(), derived=(), edits=[], reals=[]):
+                            formats=False, units=False, minmax=(), derived=(), edits=[],
+                            reals=[]):
     """A pre-processor function for use in the :meth:~pdstemplate.PdsTemplate`
     constructor.
 
@@ -351,6 +353,8 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
             there.
         formats (bool, optional):
             True to include FORMAT into each COLUMN object if it is not already there.
+        units (bool, optional):
+            True to repair units to conform to the options in the PDS3 Data Dictionary.
         minmax (str, tuple[str], or list[str], optional):
             Zero or more names of columns for which to include the MINIMUM_VALUE and
             MAXIMUM_VALUE. In addition or as an alternative, use "float" to include these
@@ -374,8 +378,8 @@ def pds3_table_preprocessor(labelpath, content, *, validate=True, numbers=False,
     logger = get_logger()
     logger.debug('PDS3 table preprocessor', labelpath)
     pds3_label = Pds3Table(labelpath, content, validate=validate, numbers=numbers,
-                           formats=formats, minmax=minmax, derived=derived, edits=edits,
-                           reals=reals)
+                           formats=formats, units=units, minmax=minmax, derived=derived,
+                           edits=edits, reals=reals)
 
     return pds3_label.content
 
@@ -397,8 +401,8 @@ class Pds3Table():
                                       r'( *END_OBJECT *= *COLUMN *\r?\n)', re.DOTALL)
 
     def __init__(self, labelpath, label='', *, validate=True, analyze_only=False,
-                 crlf=None, numbers=False, formats=False, minmax=(), derived=(),
-                 edits=[], reals=[]):
+                 crlf=None, numbers=False, formats=False, units=False, minmax=(),
+                 derived=(), edits=[], reals=[]):
         """Constructor for a Pds3Table object. It analyzes the content of a PDS3 label or
         template and saves the info for validation or possible repair.
 
@@ -423,6 +427,9 @@ class Pds3Table():
                 there.
             formats (bool, optional):
                 True to include FORMAT into each COLUMN object if it is not already there.
+            units (bool, optional):
+                True to repair units to conform to the options in the PDS3 Data
+                Dictionary.
             minmax (str, tuple[str], or list[str], optional):
                 Zero or more names of columns for which to include the MINIMUM_VALUE and
                 MAXIMUM_VALUE. In addition or as an alternative, use "float" to include
@@ -443,9 +450,8 @@ class Pds3Table():
         global _LATEST_PDS3_TABLE
 
         self.labelpath = FCPath(labelpath)
-
         if not label:
-            label = labelpath.read_bytes()      # binary to preserve terminators
+            label = self.labelpath.read_bytes()     # binary to preserve terminators
             label = label.decode('latin-1')
 
         # Identify the line terminator and validate it
@@ -463,6 +469,7 @@ class Pds3Table():
         self.minmax = (minmax,) if isinstance(minmax, str) else minmax
         self.derived = (derived,) if isinstance(derived, str) else derived
         self.reals = (reals,) if isinstance(reals, str) else reals
+        self.units = units
 
         self._table_values = {}         # parameter name -> value in label or None
         self._column_values = [None]    # list of parameter dicts, one per column
@@ -593,8 +600,12 @@ class Pds3Table():
         # Identify parameters with missing quotes
         self._quotes_missing.append(set())
         fmt = Pds3Table._get_value(label, 'FORMAT', raw=True)
-        if fmt and '.' in fmt and not fmt.startswith('"'):
-            self._quotes_missing.add('FORMAT')
+        if fmt is not None and '.' in fmt and not fmt.startswith('"'):
+            self._quotes_missing[-1].add('FORMAT')
+        unit = Pds3Table._get_value(label, 'UNIT', raw=True)
+        if (unit is not None and not unit.isidentifier() and not unit.startswith('"')
+            and unit != "'N/A'"):
+            self._quotes_missing[-1].add('UNIT')
 
         # Edit the label if necessary
         edits = self._edit_dict.get(name, {})
@@ -651,6 +662,15 @@ class Pds3Table():
                                         label, 'FORMAT',
                                         f'$QUOTE_IF(LABEL_VALUE("FORMAT", {colnum}))$',
                                         required=self.formats, after='BYTES')
+
+        # Optional UNIT
+        if self.units:
+            label, self._column_values[-1]['UNIT'] = self._replace_value(
+                                        label, 'UNIT',
+                                        f'$QUOTE_IF(LABEL_VALUE("UNIT", {colnum}))$',
+                                        required=False, after='FORMAT')
+        else:
+            self._column_values[-1]['UNIT'] = self._get_value(label, 'UNIT')
 
         # Optional MINIMUM_VALUE, MAXIMUM_VALUE
         required = ((name in self.minmax)
@@ -871,7 +891,7 @@ class Pds3Table():
                 if old_value is None:
                     messages.append(f'{colname}:{name} was inserted: {new_fmt}')
                 else:
-                    old_fmt = Pds3Table._format(old_value)
+                    old_fmt = Pds3Table._format_for_message(old_value)
                     messages.append(f'{colname}:{name} was edited: '
                                     f'{old_fmt} -> {new_fmt}')
 
@@ -899,14 +919,32 @@ class Pds3Table():
             # Optional attributes
             messages += self._check_value('COLUMN_NUMBER', colnum, required=self.numbers)
 
-            name = 'FORMAT'
-            if name not in edited_names:
+            if 'FORMAT' not in edited_names:
                 fmt_messages = self._check_value('FORMAT', colnum, required=self.formats)
                 if fmt_messages:
                     messages += fmt_messages
                 elif 'FORMAT' in self._quotes_missing[colnum]:
                     value = self.lookup('FORMAT', colnum)
-                    return [f'{colname}:FORMAT error: {value} -> "{value}"']
+                    messages.append(f'{colname}:FORMAT error: {value} -> "{value}"')
+
+            if 'UNIT' not in edited_names:
+                test = self._check_value('UNIT', colnum)
+#                 messages += self._check_value('UNIT', colnum)
+                messages += test
+                if self.units:
+                    old_value = self._column_values[colnum].get('UNIT', None)
+                    if not Pds3Table._unit_is_valid(old_value):
+                        old_fmt = Pds3Table._format_for_message(old_value)
+                        new_value = self.lookup('UNIT', colnum)
+                        if new_value == old_value:
+                            messages.append(f'{colname}:UNIT error: {old_fmt} '
+                                            'is not a recognized unit')
+                        else:
+                            messages.append(f'{colname}:UNIT error: {old_fmt} -> '
+                                            f'"{new_value}"')
+                elif 'UNIT' in self._quotes_missing[colnum]:
+                    value = self._column_values[colnum]['UNIT']
+                    messages.append(f'{colname}:UNIT error: {value} -> "{value}"')
 
             # Minima/maxima
             required = ((colname in self.minmax)
@@ -938,7 +976,7 @@ class Pds3Table():
                 if isinstance(value, str) and 'CHAR' in data_type or data_type == 'TIME':
                     continue
 
-                valfmt = Pds3Table._format(value)
+                valfmt = Pds3Table._format_for_message(value)
                 message = (f'ERROR: {colname}:{name} value {valfmt} is incompatible with '
                            f'column type {data_type}')
                 messages.append(message)
@@ -983,12 +1021,14 @@ class Pds3Table():
 
         if required and old_value is None:
             new_value = self.lookup(name, colnum)
-            new_fmt = Pds3Table._format(new_value)
+            if new_value is None:
+                return [f'{prefix}{name} is missing']
+            new_fmt = Pds3Table._format_for_message(new_value)
             return [f'{prefix}{name} is missing: {new_fmt}']
 
         if forbidden:
             if old_value is not None:
-                old_fmt = Pds3Table._format(old_value)
+                old_fmt = Pds3Table._format_for_message(old_value)
                 return [f'ERROR: {prefix}{name} is forbidden: ({old_fmt})']
             return []
 
@@ -1000,8 +1040,8 @@ class Pds3Table():
         if old_value == new_value:
             return []
 
-        new_fmt = Pds3Table._format(new_value)      # deal with quoting mismatch
-        old_fmt = Pds3Table._format(old_value)
+        new_fmt = Pds3Table._format_for_message(new_value)  # deal with quoting mismatch
+        old_fmt = Pds3Table._format_for_message(old_value)
         if old_fmt == new_fmt:
             return []
 
@@ -1031,7 +1071,8 @@ class Pds3Table():
         * `lookup("START_BYTE", <column>)`
         * `lookup("BYTES", <column>)`
         * `lookup("COLUMN_NUMBER", <column>)`
-        * `lookup("FORMAT", <column>)` (quoted if it contains a period)
+        * `lookup("FORMAT", <column>)`
+        * `lookup("UNIT", <colnum>)`
         * `lookup("MINIMUM_VALUE", <column>)`
         * `lookup("MAXIMUM_VALUE", <column>)`
         * `lookup("DERIVED_MINIMUM", <column>)`
@@ -1064,6 +1105,9 @@ class Pds3Table():
         else:
             colnum = self._column_number[column] if isinstance(column, str) else column
             colname = self._column_name[colnum]
+
+        if name in self._edit_dict.get(colname, {}):
+            return Pds3Table._eval(self._edit_dict[colname][name])
 
         indx = self._table_index[colnum] if colnum else None
         match name:
@@ -1140,9 +1184,15 @@ class Pds3Table():
                         return 'F' + str(self.table.lookup('BYTES', indx)) + '.0'
                 # Override the derived FORMAT if every value in the table is invalid
                 old_fmt = self._column_values[colnum]['FORMAT']
-                if old_fmt is not None and len(self._unique_valids(colnum)) == 0:
+                if (old_fmt is not None and len(self._unique_valids(colnum)) == 0
+                    and Pds3Table._format_is_valid(old_fmt)):
                     return old_fmt
                 return fmt
+            case 'UNIT':
+                unit = self._column_values[colnum]['UNIT']
+                if self.units:
+                    return Pds3Table._get_valid_unit(unit) or unit
+                return unit
             case ('MINIMUM_VALUE' | 'MAXIMUM_VALUE' | 'DERIVED_MINIMUM' |
                   'DERIVED_MAXIMUM'):
                 unique = self._unique_valids(colnum) or self._unique_values(colnum)
@@ -1280,7 +1330,7 @@ class Pds3Table():
 
         Available column-level keywords are "NAME", "COLUMN_NUMBER", "DATA_TYPE",
         "START_BYTE", "BYTES", "FORMAT", "ITEMS", "ITEM_BYTES", "ITEM_OFFSET",
-        "SCALING_FACTOR", "OFFSET", "INVALID_CONSTANT", "MISSING_CONSTANT",
+        "SCALING_FACTOR", "OFFSET", "UNIT", "INVALID_CONSTANT", "MISSING_CONSTANT",
         "NOT_APPLICABLE_CONSTANT", "NULL_CONSTANT", "UNKNOWN_CONSTANT", "VALID_MAXIMUM",
         "VALID_MINIMUM", "MINIMUM_VALUE", "MAXIMUM_VALUE", "DERIVED_MINIMUM", and
         "DERIVED_MAXIMUM".
@@ -1438,7 +1488,7 @@ class Pds3Table():
 
         return Pds3Table._eval(value)
 
-    _UNQUOTED_OK = re.compile(r'[A-Za-z]\w*')
+    _UNQUOTED_OK = re.compile(r'[A-Z][A-Z0-9_]*')
 
     @staticmethod
     def _eval(value):
@@ -1468,8 +1518,8 @@ class Pds3Table():
         return value
 
     @staticmethod
-    def _format(value):
-        """Return the value formatted for the PDS3 label."""
+    def _format_for_message(value):
+        """Return the value formatted for an error message or the PDS3 label."""
 
         if isinstance(value, int):
             return str(value)
@@ -1492,5 +1542,135 @@ class Pds3Table():
             return value
 
         return '"' + value + '"'
+
+    _VALID_AI_FORMAT_STRING = re.compile(r'([AI])(\d+)')
+    _VALID_EF_FORMAT_STRING = re.compile(r'([EF])(\d+)\.(\d+)')
+
+    @staticmethod
+    def _format_is_valid(value):
+        """True if the given value is a valid PDS3 format string."""
+
+        if not isinstance(value, str):
+            return False
+
+        match = Pds3Table._VALID_AI_FORMAT_STRING.fullmatch(value)
+        if match:
+            return int(match.group(2)) > 0
+
+        match = Pds3Table._VALID_EF_FORMAT_STRING.fullmatch(value)
+        if match:
+            i1 = int(match.group(2))
+            i2 = int(match.group(3))
+            if match.group(1) == 'F' and i1 > i2 + 1:
+                return True
+            if match.group(1) == 'E' and i1 > i2 + 5:
+                return True
+
+        return False
+
+    ######################################################################################
+    # Translator/validator for PDS3 units
+    ######################################################################################
+
+    _VALID_UNITS = {            # from pdsdd.full
+        'A', 'A/m', 'A/m**2', 'B', 'Bq', 'C', 'C/kg', 'C/m**2', 'C/m**3', 'F',
+        'F/m', 'Gy', 'Gy/s', 'H', 'H/m', 'Hz', 'J', 'J/(kg.K)', 'J/(m**2)/s',
+        'J/(mol.K)', 'J/K', 'J/T', 'J/kg', 'J/m**3', 'J/mol', 'K', 'MB', 'N',
+        'N.m', 'N/A', 'N/m', 'N/m**2', 'Pa', 'Pa.s', 'S', 'Sv', 'T', 'V',
+        'V/m', 'W', 'W.m**-2.sr**-1', 'W/(m.K)', 'W/m**2', 'W/sr', 'Wb',
+        'arcsec/pixel', 'arcsecond',
+        'bar', 'cd', 'cd/m**2', 'd', 'dB', 'deg', 'deg/day', 'deg/s', 'degC',
+        'g', 'g/cm**3', 'h', 'kHz', 'kb/s', 'kg', 'kg/m**3', 'km', 'km**-1',
+        'km**2', 'km/pixel', 'km/s', 'lm', 'local day/24', 'lx', 'm', 'm**-1',
+        'm**2', 'm**2/s', 'm**3', 'm**3/kg', 'm/pixel', 'm/s', 'm/s**2', 'mA',
+        'mag', 'micron', 'min', 'mm', 'mm/s', 'mol', 'mol/m**3', 'mrad', 'ms',
+        'n/a', 'nT', 'nm', 'none', 'ohm', 'p/line', 'pixel', 'pixel/deg',
+        'rad', 'rad/s', 'rad/s**2', 's', 'sr', 'uW', 'us', 'us_dollar',
+        #
+        # disallowed: b -> bit; pix -> pixel; degree -> deg
+        # 'b/pixel', 'b/s', 'km/pix', 'm/pix', 'pix/deg', 'pix/degree', 'pixel/degree'
+        #
+        # added manually...
+        'bit', 'kbit', 'bit/s', 'kbit/s', 'bit/pixel', 'kbit/pixel', 'cm', 'KB', 'KB/s',
+        'MB/s', 'erg/s/cm**2/micron/sr',
+        "'N/A'", None,
+    }
+
+    _COMMON_UNITS_TO_REPAIR = {
+        ('celsius degree', 'degC'),
+        ('kelvin', 'K'),
+        ('degree', 'deg'),
+        ('radian', 'rad'),
+        ('arcsecond', 'arcsec'),
+        ('arcsec', 'arcsecond'),
+        ('steradian', 'sr'),
+        ('ster', 'sr'),
+        ('centimeter', 'cm'),
+        ('kilometer', 'km'),
+        ('meter', 'm'),
+        ('micron', 'micron'),   # needed for "microns" -> "micron"
+        ('micrometer', 'micron'),
+        ('second', 's'),
+        ('sec', 's'),
+        ('minute', 'min'),
+        ('hour', 'h'),
+        ('millisec', 'ms'),
+        ('millisecond', 'ms'),
+        ('pix', 'pixel'),
+        ('bit', 'bit'),         # needed for "bits" -> "bit"
+        ('kbit', 'kbit'),       # needed for "kbits" -> "kbit"
+        ('kilobit', 'kbit'),
+        ('kilobyte', 'KB'),
+        ('megabyte', 'MB'),
+        ('erg', 'erg'),         # needed for "ergs" -> erg
+        ('hz', 'Hz'),
+    }
+
+    _WORD_SPLITTER = re.compile(r'([a-zA-Z ]+).*?')
+
+    @staticmethod
+    def _get_valid_unit(unit):
+        """The valid version of the given unit, or an empty string on failure."""
+
+        if unit in Pds3Table._VALID_UNITS:
+            return unit
+
+        unit_lc = unit.lower()
+        if unit_lc in Pds3Table._VALID_UNITS:
+            return unit_lc
+
+        # Fix exponent style, punctuation
+        if '^' in unit:
+            return Pds3Table._get_valid_unit(unit.replace('^', '**'))
+        if unit.startswith("'") and unit.endswith("'"):
+            return Pds3Table._get_valid_unit(unit[1:-1])
+
+        # Split into words (split by punctuation but not by blanks)
+        parts = Pds3Table._WORD_SPLITTER.split(unit)
+
+        # Convert each word to lower case if it's a unit in and of itself
+        parts_lc = [part.lower() for part in parts]
+        for k, part_lc in enumerate(parts_lc):
+            if part_lc in Pds3Table._VALID_UNITS:
+                parts[k] = part_lc
+
+        # Replace other units with common options
+        words = set(parts_lc[1::2])
+        for (before, after) in Pds3Table._COMMON_UNITS_TO_REPAIR:
+            for suffix in ('', 's'):
+                test = (before + suffix).lower()
+                if test in words:
+                    k = parts_lc.index(test)
+                    parts[k] = after
+
+        unit = ''.join(parts)
+        return unit if unit in Pds3Table._VALID_UNITS else ''
+
+    @staticmethod
+    def _unit_is_valid(unit):
+        """True if the given unit is valid."""
+
+        valid_unit = Pds3Table._get_valid_unit(unit)
+        return bool(valid_unit != '')
 
 ##########################################################################################

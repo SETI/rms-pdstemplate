@@ -268,6 +268,8 @@ class Test_Predefined(unittest.TestCase):
             times = test.split('::')   # very rarely, these times could differ by a second
             self.assertEqual(times[0], times[1])
 
+            # RECORD_BYTES
+            self.assertEqual(PdsTemplate.RECORD_BYTES(filepath), 8)
         finally:
             os.close(fd)
             os.remove(filepath)
@@ -298,6 +300,14 @@ class Test_Predefined(unittest.TestCase):
         D = {'x': 1}
         V = '<a>1</a>\n'
         self.assertEqual(T.generate(D), V)
+
+        # QUOTE_IF
+        self.assertEqual(PdsTemplate.QUOTE_IF('ABC'), 'ABC')
+        self.assertEqual(PdsTemplate.QUOTE_IF('F13.4'), '"F13.4"')
+        self.assertEqual(PdsTemplate.QUOTE_IF('km'), '"km"')
+        self.assertEqual(PdsTemplate.QUOTE_IF('N/A'), "'N/A'")
+        self.assertEqual(PdsTemplate.QUOTE_IF("'N/A'"), "'N/A'")
+        self.assertEqual(PdsTemplate.QUOTE_IF("N/A"), "'N/A'")
 
         # RAISE
         T = PdsTemplate('t.xml', content='$RAISE(ValueError,"This is the ValueError")$\n')

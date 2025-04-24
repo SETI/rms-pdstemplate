@@ -16,9 +16,9 @@ import unittest
 import pdslogger
 
 from pdstemplate import PdsTemplate, get_logger, TemplateError
-from pdstemplate.pds3table import Pds3Table, VALIDATE_PDS3_LABEL, \
-                                  LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE
-from pdstemplate.pds3table import pds3_table_preprocessor, _latest_pds3_table
+from pdstemplate.pds3table import (Pds3Table, VALIDATE_PDS3_LABEL,
+                                   LABEL_VALUE, OLD_LABEL_VALUE, ANALYZE_TABLE,
+                                   pds3_table_preprocessor, _latest_pds3_table)
 from pdstemplate.asciitable import AsciiTable, _reset_ascii_table
 
 
@@ -103,7 +103,7 @@ class Test_Pds3Table(unittest.TestCase):
         self.assertEqual(LABEL_VALUE('DATA_TYPE', k), 'ASCII_REAL')
         self.assertEqual(LABEL_VALUE('START_BYTE', k), 388)
         self.assertEqual(LABEL_VALUE('BYTES', k), 14)
-        self.assertEqual(LABEL_VALUE('FORMAT', k), 'E14')
+        self.assertEqual(LABEL_VALUE('FORMAT', k), 'E14.0')
         self.assertEqual(LABEL_VALUE('NOT_APPLICABLE_CONSTANT', k), -1.e32)
         self.assertEqual(LABEL_VALUE('NULL_CONSTANT', k), 1.e32)
         self.assertEqual(LABEL_VALUE('COLUMN_NUMBER', k), 24)
@@ -111,28 +111,35 @@ class Test_Pds3Table(unittest.TestCase):
         self.assertEqual(LABEL_VALUE('MAXIMUM_VALUE', k), 1e+32)
 
         # Validation, edits
-        warnings = label._validation_warnings()
+        warns = label._validation_warnings()
         answer = ['SWATH_WIDTH:DATA_TYPE error: INTEGER -> ASCII_INTEGER',
                   'SWATH_LENGTH:DATA_TYPE error: INTEGER -> ASCII_INTEGER',
                   'IR_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
-                  'VIS_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL']
-        self.assertEqual(warnings, answer)
+                  'VIS_EXPOSURE:DATA_TYPE error: REAL -> ASCII_REAL',
+                  'CENTRAL_BODY_DISTANCE:FORMAT error: E14 -> "E14.0"',
+                  'MAXIMUM_RING_RADIUS:FORMAT error: E14 -> "E14.0"',
+                  'MINIMUM_RING_RADIUS:FORMAT error: E14 -> "E14.0"',
+                  'TARGET_DISTANCE:FORMAT error: E14 -> "E14.0"']
+        self.assertEqual(warns, answer)
 
         label = Pds3Table(path, edits=['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT = 0.',
                                        'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT = 0.'])
-        warnings = label._validation_warnings()
-        self.assertEqual(warnings[:4], answer[:4])
-        self.assertEqual(warnings[-2:],
+        warns = label._validation_warnings()
+        for warn in answer:
+            self.assertIn(warn, warns)
+            warns.remove(warn)
+        self.assertEqual(warns,
                     ['SC_SUN_POSITION_VECTOR:UNKNOWN_CONSTANT was inserted: 0.',
                      'SC_SUN_VELOCITY_VECTOR:NULL_CONSTANT was edited: 1.E+32 -> 0.'])
 
         self.assertEqual(LABEL_VALUE('MINIMUM_VALUE', 'SC_SUN_POSITION_VECTOR'), 0.)
         self.assertEqual(LABEL_VALUE('MAXIMUM_VALUE', 'SC_SUN_POSITION_VECTOR'), 0.)
+
         before = [_LOGGER.message_count('error'), _LOGGER.message_count('warn')]
         VALIDATE_PDS3_LABEL()
         after = [_LOGGER.message_count('error'), _LOGGER.message_count('warn')]
         self.assertEqual(after[0] - before[0], 0)
-        self.assertEqual(after[1] - before[1], 6)
+        self.assertEqual(after[1] - before[1], 10)
 
         # More options
         label = Pds3Table(path, numbers=True, formats=True, minmax='float',
@@ -240,10 +247,10 @@ class Test_Pds3Table(unittest.TestCase):
 
         # Repeated column names
         path = test_file_dir / 'repeated_column_names.lbl'
-        label = Pds3Table(path)
+        label = Pds3Table(path, units=False)
         _ = AsciiTable(test_file_dir / 'GO_0023_sky_summary.tab')
-        warnings = label._validation_warnings()
-        self.assertEqual(warnings,
+        warns = label._validation_warnings()
+        self.assertEqual(warns,
                 ['ERROR: Name FILE_SPECIFICATION_NAME is duplicated at columns 2 and 3',
                  'ERROR: Name MAXIMUM_DECLINATION is duplicated at columns 4 and 5',
                  'ERROR: Name MAXIMUM_DECLINATION is duplicated at columns 5 and 6'])
@@ -256,3 +263,44 @@ class Test_Pds3Table(unittest.TestCase):
         del PdsTemplate._PREDEFINED_FUNCTIONS['TABLE_VALUE']
 
         _LOGGER.remove_all_handlers()
+
+class Test_Pds3Table_units(unittest.TestCase):
+
+    def runTest(self):
+        self.assertEqual(Pds3Table._get_valid_unit('ERGS/SEC/CM^2/MICROMETER/STER'),
+                         'erg/s/cm**2/micron/sr')
+        self.assertEqual(Pds3Table._get_valid_unit('METERS/SECOND'), 'm/s')
+        self.assertEqual(Pds3Table._get_valid_unit('millisec'), 'ms')
+        self.assertEqual(Pds3Table._get_valid_unit('microns'), 'micron')
+        self.assertEqual(Pds3Table._get_valid_unit('Micron'), 'micron')
+        self.assertEqual(Pds3Table._get_valid_unit('BITS/sec'), 'bit/s')
+        self.assertEqual(Pds3Table._get_valid_unit('kbits/sec'), 'kbit/s')
+        self.assertEqual(Pds3Table._get_valid_unit('BITS/PIX'), 'bit/pixel')
+        self.assertEqual(Pds3Table._get_valid_unit('MB/sec'), 'MB/s')
+        self.assertEqual(Pds3Table._get_valid_unit('mb/sec'), '')  # Can't lower-case "MB"
+        self.assertEqual(Pds3Table._get_valid_unit('hz'), 'Hz')
+        self.assertEqual(Pds3Table._get_valid_unit('HZ'), 'Hz')
+        self.assertEqual(Pds3Table._get_valid_unit('J'), 'J')
+        self.assertEqual(Pds3Table._get_valid_unit('j'), '')       # Can't lower-case "J"
+        self.assertEqual(Pds3Table._get_valid_unit('SR'), 'sr')
+        self.assertEqual(Pds3Table._get_valid_unit('N/A'), 'N/A')
+        self.assertEqual(Pds3Table._get_valid_unit("'N/A'"), "'N/A'")
+        self.assertEqual(Pds3Table._get_valid_unit("'KM/S'"), "km/s")
+
+        self.assertEqual(Pds3Table._unit_is_valid('METERS/SECOND'), True)
+        self.assertEqual(Pds3Table._unit_is_valid('mb/sec'), False)
+
+class Test_Pds3Table_format_is_valid(unittest.TestCase):
+
+    def runTest(self):
+        self.assertEqual(Pds3Table._format_is_valid('F12.0'), True)
+        self.assertEqual(Pds3Table._format_is_valid('F12.10'), True)
+        self.assertEqual(Pds3Table._format_is_valid('F12.11'), False)
+        self.assertEqual(Pds3Table._format_is_valid('E12.0'), True)
+        self.assertEqual(Pds3Table._format_is_valid('E12.6'), True)
+        self.assertEqual(Pds3Table._format_is_valid('E12.7'), False)
+        self.assertEqual(Pds3Table._format_is_valid('e12.4'), False)
+        self.assertEqual(Pds3Table._format_is_valid('I1'), True)
+        self.assertEqual(Pds3Table._format_is_valid('I0'), False)
+        self.assertEqual(Pds3Table._format_is_valid('A1'), True)
+        self.assertEqual(Pds3Table._format_is_valid('A0'), False)

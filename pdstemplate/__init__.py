@@ -286,6 +286,10 @@ The following pre-defined functions can be used inside any expression in the tem
 - :meth:`~.PdsTemplate.RAISE`
   Raise an exception with a given class and text message.
 
+- :meth:`~.PdsTemplate.RECORD_BYTES`
+  The maximum number of bytes in any record of a specified file, including line
+  terminators.
+
 - :meth:`~.PdsTemplate.REPLACE_NA`
   Return either a given string or an indication that it is "not applicable".
 
@@ -412,7 +416,7 @@ class PdsTemplate:
     _GETENV_INCLUDE_DIRS = None
 
     def __init__(self, template, content='', *, xml=None, crlf=None, upper_e=False,
-                 includes=[], preprocess=None, args=(), kwargs={}):
+                 includes=[], preprocess=None, args=(), kwargs={}, postprocess=None):
         """Construct a PdsTemplate object from the contents of a template file.
 
         Parameters:
@@ -441,8 +445,10 @@ class PdsTemplate:
                 those defined by PDSTEMPLATE_INCLUDES.
             preprocess (function or list[function], optional):
                 An optional function or list of functions that transform the content of a
-                template into a new template. The call signature is
-                ``func(path, content, *args, **kwargs)``
+                template into a new template. The call signature is::
+
+                    func(path, content, *args, **kwargs) -> str
+
                 where `path` is the path of the template file (used here just for error
                 reporting), `content` is the template's content, provided as a single
                 string with <LF> line terminators, and `args` and `kwargs` are additional
@@ -454,6 +460,15 @@ class PdsTemplate:
             kwargs (dict):
                 Any keywords=value arguments to be passed to the first preprocess
                 function.
+            postprocess (function, optional):
+                An optional function to apply after label content has been generated. This
+                could be used to transform the content or to apply further validation. The
+                call signature is::
+
+                    func(content: str) -> str
+
+                For example, use `postprocess=ps3_syntax_checker` to ensure a generated
+                label strictly conforms to the PDS3 standard.
         """
 
         self.template_path = FCPath(template)
@@ -465,6 +480,7 @@ class PdsTemplate:
         self._includes = [FCPath(dir) for dir in includes]
 
         self.upper_e = bool(upper_e)
+        self.postprocess = postprocess
 
         logger = get_logger()
         logger.info('New PdsTemplate', self.template_path)
@@ -631,8 +647,14 @@ class PdsTemplate:
         try:
             for block in self._blocks:
                 results += block.execute(state)
+            content = ''.join(results)
+            if self.postprocess:            # postprocess if necessary
+                content = self.postprocess(content)
         except TemplateAbort as err:
             logger.fatal('**** ' + err.message, label_path)
+        except Exception as err:
+            logger.exception(err, label_path)
+            raise err
         finally:
             (fatals, errors, warns, total) = logger.close()
 
@@ -693,11 +715,13 @@ class PdsTemplate:
 
         logger = get_logger()
         if handler:
+            # Convert any string to an FCPath
             if isinstance(handler, str):
                 if handler.startswith('.'):
                     handler = label_path.with_suffix(handler)
                 else:
                     handler = FCPath(handler)
+            # Convert any FCPath to a FileHandler
             if isinstance(handler, FCPath):
                 handler = pdslogger.file_handler(handler)
             logger.add_handler(handler)
@@ -1068,15 +1092,16 @@ class PdsTemplate:
             0 if the file is binary.
         """
 
-        # We intentionally open this in non-binary mode so we don't have to
-        # content with line terminator issues
-        with open(filepath, 'r') as f:
+        # We intentionally open this in non-binary mode so we don't have to contend with
+        # line terminator issues.
+        printable = string.printable.encode('latin8')
+        with open(filepath, 'rb') as f:
             count = 0
             asciis = 0
             non_asciis = 0
             for line in f:
                 for c in line:
-                    if c in string.printable:
+                    if c in printable:
                         asciis += 1
                     else:
                         non_asciis += 1
@@ -1184,12 +1209,11 @@ class PdsTemplate:
 
     @staticmethod
     def QUOTE_IF(text):
-        """Place the given text in quotes if it contains any character other than letters,
-        digits, and an underscore.
+        """Place the given text in quotes if it is not a valid upper-case identifier.
 
-        An empty string is also quoted. A string that is already enclosed in quotes is
-        not quoted (but quote balancing is not checked). Other values are returned
-        unchanged.
+        An empty string and a string starting with a digit is also quoted. A string that
+        is already enclosed in quotes or apostrophes is not quoted (but quote balancing is
+        not checked). Other values are returned unchanged.
 
         Parameters:
             text (str): Text to possibly quote.
@@ -1198,11 +1222,17 @@ class PdsTemplate:
             str: The text with quotes if necessary.
         """
 
-        if text.isidentifier():
+        if text == text.upper() and text.isidentifier():
             return text
 
         if text.startswith('"') and text.endswith('"'):
             return text
+
+        if text.startswith("'") and text.endswith("'"):
+            return text
+
+        if text == 'N/A':
+            return "'N/A'"
 
         return '"' + text + '"'
 
@@ -1219,6 +1249,24 @@ class PdsTemplate:
         """
 
         raise _RaisedException(exception, message)  # wrapper used to handle formatting
+
+    @staticmethod
+    def RECORD_BYTES(filepath):
+        """The maximum number of bytes in any record of the specified file, including line
+        terminators.
+
+        Parameters:
+            filepath (str): The filepath.
+        """
+
+        # We intentionally open this in non-binary mode so we don't have to contend with
+        # line terminator issues.
+        max_bytes = 0
+        with open(filepath, 'rb') as f:
+            for line in f:
+                max_bytes = max(max_bytes, len(line))
+
+        return max_bytes
 
     @staticmethod
     def REPLACE_NA(value, na_value, flag='N/A'):
@@ -1355,6 +1403,7 @@ PdsTemplate._PREDEFINED_FUNCTIONS['LOG'          ] = PdsTemplate.LOG
 PdsTemplate._PREDEFINED_FUNCTIONS['NOESCAPE'     ] = PdsTemplate.NOESCAPE
 PdsTemplate._PREDEFINED_FUNCTIONS['QUOTE_IF'     ] = PdsTemplate.QUOTE_IF
 PdsTemplate._PREDEFINED_FUNCTIONS['RAISE'        ] = PdsTemplate.RAISE
+PdsTemplate._PREDEFINED_FUNCTIONS['RECORD_BYTES' ] = PdsTemplate.RECORD_BYTES
 PdsTemplate._PREDEFINED_FUNCTIONS['REPLACE_NA'   ] = PdsTemplate.REPLACE_NA
 PdsTemplate._PREDEFINED_FUNCTIONS['REPLACE_UNK'  ] = PdsTemplate.REPLACE_UNK
 PdsTemplate._PREDEFINED_FUNCTIONS['TEMPLATE_PATH'] = PdsTemplate.TEMPLATE_PATH

@@ -5,6 +5,7 @@ pytest
 rms-filecache
 rms-julian
 rms-pdslogger>=3.0.0
+rms-pdsparser
 sphinx
 sphinxcontrib-napoleon
 sphinx-rtd-theme

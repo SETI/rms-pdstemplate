@@ -83,7 +83,7 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertEqual(len(TABLE_VALUE('VALUES', k)), 1711)
 
         k = 15
-        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', k), '"F10.1"')
+        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', k), 'F10.1')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', k), '%10.1f')
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', k), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', k), 'ASCII_Real')
@@ -97,7 +97,7 @@ class Test_AsciiTable(unittest.TestCase):
         self.assertEqual(len(TABLE_VALUE('VALUES', k)), 1711)
 
         k = 73
-        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', k), '"E11.0"')
+        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', k), 'E11.0')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', k), '%11.0E')
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', k), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', k), 'ASCII_Real')
@@ -199,13 +199,13 @@ class Test_AsciiTable(unittest.TestCase):
         table = AsciiTable(path, content=[b'   +1.E32\n', b'12345.678\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Real')
-        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), '"F9.3"')
+        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'F9.3')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', 0), '%9.3f')
 
         table = AsciiTable(path, content=[b'   +1.E32\n', b'12345.678\n'])
         self.assertEqual(TABLE_VALUE('PDS3_DATA_TYPE', 0), 'ASCII_REAL')
         self.assertEqual(TABLE_VALUE('PDS4_DATA_TYPE', 0), 'ASCII_Real')
-        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), '"F9.3"')
+        self.assertEqual(TABLE_VALUE('PDS3_FORMAT', 0), 'F9.3')
         self.assertEqual(TABLE_VALUE('PDS4_FORMAT', 0), '%9.3f')
 
         # Escaped quotes and quoted commas
