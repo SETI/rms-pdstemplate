@@ -17,6 +17,8 @@ extend-ignore =
 per-file-ignores =
     # E501 Line too long (82 > 79 characters)
     pds3table.py: E501
+    # E501 Line too long (82 > 79 characters)
+    test_pdstemplate.py: E501
 
 # E111 Indentation is not a multiple of four
 # E114 Indentation is not a multiple of four (comment)
