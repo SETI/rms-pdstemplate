@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('path', nargs='*', type=str,
                     help='Path to one or more files to label.')
-parser.add_argument('--template', '-t', type=str,
+parser.add_argument('--template', '-t', type=str, required=True,
                     help='Path to the template file.')
 parser.add_argument('--dict', '-d', nargs='*', type=str,
                     help='One or more keyword definitions of the form "name=value", '
@@ -49,8 +49,12 @@ parser.add_argument('--nobackup', '-B', action='store_true',
 # Parse and validate the command line
 args = parser.parse_args()
 
-template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
 label_paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+if not label_paths:
+    print('error: no input files')
+    sys.exit(1)
+
+template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
 
 # Interpret the --dict input
 dictionary = {}

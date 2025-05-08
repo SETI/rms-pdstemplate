@@ -150,6 +150,9 @@ kwargs = {
 
 # Interpret paths
 paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+if not paths:
+    print('error: no input files')
+    sys.exit(1)
 
 # Prepare short and long info messages
 arglist = list(sys.argv)
