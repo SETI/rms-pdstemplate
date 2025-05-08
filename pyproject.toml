@@ -42,6 +42,7 @@ Issues = "https://github.com/SETI/rms-pdstemplate/issues"
 
 [project.scripts]
 tablelabel = "programs.tablelabel:main"
+quicklabel = "programs.quicklabel:main"
 
 [tool.setuptools]
 packages = ["pdstemplate", "programs"]
