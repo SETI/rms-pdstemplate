@@ -46,38 +46,44 @@ parser.add_argument('--nobackup', '-B', action='store_true',
                          'existing label is renamed with a suffix identifying its '
                          'original creation date and time.')
 
-# Parse and validate the command line
-args = parser.parse_args()
+def main():
 
-label_paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
-if not label_paths:
-    print('error: no input files')
-    sys.exit(1)
+    # Parse and validate the command line
+    args = parser.parse_args()
 
-template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
+    label_paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+    if not label_paths:
+        print('error: no input files')
+        sys.exit(1)
 
-# Interpret the --dict input
-dictionary = {}
-for item in args.dict or []:
-    name, _, value = item.partition('=')
-    try:
-        value = eval(value)
-    except Exception:
-        pass
-    dictionary[name] = value
+    template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
 
-# Process each path...
-errors = 0
-for k, path in enumerate(label_paths):
+    # Interpret the --dict input
+    dictionary = {}
+    for item in args.dict or []:
+        name, _, value = item.partition('=')
+        try:
+            value = eval(value)
+        except Exception:
+            pass
+        dictionary[name] = value
 
-    # Process one label
-    status = template.write(dictionary, path, mode='save', backup=(not args.nobackup))
+    # Process each path...
+    errors = 0
+    for k, path in enumerate(label_paths):
 
-    # Keep track of errors and warnings
-    errors += status[0]
+        # Process one label
+        status = template.write(dictionary, path, mode='save', backup=(not args.nobackup))
 
-# Report the error status if any error occurred
-if errors:
-    sys.exit(1)
+        # Keep track of errors and warnings
+        errors += status[0]
+
+    # Report the error status if any error occurred
+    if errors:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
 
 ##########################################################################################
