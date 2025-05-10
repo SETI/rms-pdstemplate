@@ -134,107 +134,117 @@ parser.add_argument('--dump', action='store_true',
                     help='Dump the content of the pre-processed template to the '
                          'terminal.')
 
-# Parse and validate the command line
-args = parser.parse_args()
+def main():
 
-kwargs = {
-    'numbers' : args.numbers,
-    'formats' : args.formats,
-    'units'   : args.units,
-    'minmax'  : args.minmax or [],
-    'derived' : args.derived or [],
-    'edits'   : args.edit or [],
-    'reals'   : args.real or [],
-    'validate': True,
-}
+    # Parse and validate the command line
+    args = parser.parse_args()
 
-# Interpret paths
-paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+    kwargs = {
+        'numbers' : args.numbers,
+        'formats' : args.formats,
+        'units'   : args.units,
+        'minmax'  : args.minmax or [],
+        'derived' : args.derived or [],
+        'edits'   : args.edit or [],
+        'reals'   : args.real or [],
+        'validate': True,
+    }
 
-# Prepare short and long info messages
-arglist = list(sys.argv)
-arglist[0] = 'tablelabel'
-title = ' '.join(arglist)
+    # Interpret paths
+    paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+    if not paths:
+        print('error: no input files')
+        sys.exit(1)
 
-for k, arg in enumerate(arglist):   # remove paths from command line; preserve template
-    if arg in {'-t', '--template'}:
-        arglist[k] = arglist[k] + ' ' + arglist[k+1]
+    # Prepare short and long info messages
+    arglist = list(sys.argv)
+    arglist[0] = 'tablelabel'
+    title = ' '.join(arglist)
 
-short_title = 'tablelabel ' + ' '.join([arg for arg in arglist if arg[0] == '-'])
+    for k, arg in enumerate(arglist):  # remove paths from command line; preserve template
+        if arg in {'-t', '--template'}:
+            arglist[k] = arglist[k] + ' ' + arglist[k+1]
 
-# Define the logger
-logger = pdslogger.PdsLogger.get_logger(LOGNAME, timestamps=args.timestamps, digits=3,
-                                        lognames=False, indent=True, blanklines=False,
-                                        level='debug' if args.debug else 'info')
-pdstemplate.set_logger(logger)
+    short_title = 'tablelabel ' + ' '.join([arg for arg in arglist if arg[0] == '-'])
 
-logger.add_handler(pdslogger.NULL_HANDLER)  # suppress automatic logging to stdout
+    # Define the logger
+    logger = pdslogger.PdsLogger.get_logger(LOGNAME, timestamps=args.timestamps, digits=3,
+                                            lognames=False, indent=True, blanklines=False,
+                                            level='debug' if args.debug else 'info')
+    pdstemplate.set_logger(logger)
 
-parents = set(p.parent for p in paths)
-logger.add_root(*parents)
+    logger.add_handler(pdslogger.NULL_HANDLER)  # suppress automatic logging to stdout
 
-# Define the default handlers
-if not args.quiet:
-    logger.add_handler(pdslogger.STDOUT_HANDLER)
+    parents = set(p.parent for p in paths)
+    logger.add_root(*parents)
 
-template = None
-if args.template:
-    template = PdsTemplate(args.template, crlf=True, upper_e=args.upper_e,
-                           preprocess=pds3_table_preprocessor, kwargs=kwargs,
-                           postprocess=pds3_syntax_checker)
-    if args.dump:
-        print(template.content)
+    # Define the default handlers
+    if not args.quiet:
+        logger.add_handler(pdslogger.STDOUT_HANDLER)
 
-    if len(paths) > 1:
-        logger.blankline()
-
-# Interpret the --dict input
-dictionary = {}
-for item in args.dict or []:
-    name, _, value = item.partition('=')
-    try:
-        value = eval(value)
-    except Exception:
-        pass
-    dictionary[name] = value
-
-# Process each path...
-logger.open(title)
-
-errors = 0
-warnings = 0
-for k, path in enumerate(paths):
-
-    # Skip existing files for task == "create"
-    if args.task == 'create' and path.exists():
-        logger.blankline()
-        logger.info('Existing file skipped', path)
-        continue
-
-    # Save a log file for each path if necessary
-    handler = pdslogger.file_handler(path.with_suffix('.log')) if args.log else []
-    with logger.open(short_title, path, handler=handler, **BLANKLINE):
-
-        # If there's not a default template, each label is its own template
-        if not args.template:
-            template = PdsTemplate(path, crlf=True, upper_e=args.upper_e,
-                                   preprocess=pds3_table_preprocessor, kwargs=kwargs,
-                                   postprocess=pds3_syntax_checker)
+    template = None
+    if args.template:
+        template = PdsTemplate(args.template, crlf=True, upper_e=args.upper_e,
+                               preprocess=pds3_table_preprocessor, kwargs=kwargs,
+                               postprocess=pds3_syntax_checker)
         if args.dump:
             print(template.content)
 
-        # Process one label
-        mode = 'save' if args.task == 'create' else args.task
-        status = template.write(dictionary, path, mode=mode, backup=(not args.nobackup))
+        if len(paths) > 1:
+            logger.blankline()
 
-        # Keep track of errors and warnings
-        errors += status[0]
-        warnings += status[1]
+    # Interpret the --dict input
+    dictionary = {}
+    for item in args.dict or []:
+        name, _, value = item.partition('=')
+        try:
+            value = eval(value)
+        except Exception:
+            pass
+        dictionary[name] = value
 
-logger.close(**BLANKLINE)
+    # Process each path...
+    logger.open(title)
 
-# Report the error status if validation failed or any error occurred
-if errors or (args.task == 'validate' and warnings):
-    sys.exit(1)
+    errors = 0
+    warnings = 0
+    for k, path in enumerate(paths):
+
+        # Skip existing files for task == "create"
+        if args.task == 'create' and path.exists():
+            logger.blankline()
+            logger.info('Existing file skipped', path)
+            continue
+
+        # Save a log file for each path if necessary
+        handler = pdslogger.file_handler(path.with_suffix('.log')) if args.log else []
+        with logger.open(short_title, path, handler=handler, **BLANKLINE):
+
+            # If there's not a default template, each label is its own template
+            if not args.template:
+                template = PdsTemplate(path, crlf=True, upper_e=args.upper_e,
+                                       preprocess=pds3_table_preprocessor, kwargs=kwargs,
+                                       postprocess=pds3_syntax_checker)
+            if args.dump:
+                print(template.content)
+
+            # Process one label
+            mode = 'save' if args.task == 'create' else args.task
+            status = template.write(dictionary, path, mode=mode,
+                                    backup=(not args.nobackup))
+
+            # Keep track of errors and warnings
+            errors += status[0]
+            warnings += status[1]
+
+    logger.close(**BLANKLINE)
+
+    # Report the error status if validation failed or any error occurred
+    if errors or (args.task == 'validate' and warnings):
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
 
 ##########################################################################################

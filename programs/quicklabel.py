@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('path', nargs='*', type=str,
                     help='Path to one or more files to label.')
-parser.add_argument('--template', '-t', type=str,
+parser.add_argument('--template', '-t', type=str, required=True,
                     help='Path to the template file.')
 parser.add_argument('--dict', '-d', nargs='*', type=str,
                     help='One or more keyword definitions of the form "name=value", '
@@ -46,34 +46,44 @@ parser.add_argument('--nobackup', '-B', action='store_true',
                          'existing label is renamed with a suffix identifying its '
                          'original creation date and time.')
 
-# Parse and validate the command line
-args = parser.parse_args()
+def main():
 
-template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
-label_paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+    # Parse and validate the command line
+    args = parser.parse_args()
 
-# Interpret the --dict input
-dictionary = {}
-for item in args.dict or []:
-    name, _, value = item.partition('=')
-    try:
-        value = eval(value)
-    except Exception:
-        pass
-    dictionary[name] = value
+    label_paths = [pathlib.Path(p).with_suffix('.lbl') for p in args.path]
+    if not label_paths:
+        print('error: no input files')
+        sys.exit(1)
 
-# Process each path...
-errors = 0
-for k, path in enumerate(label_paths):
+    template = PdsTemplate(args.template, crlf=True, postprocess=pds3_syntax_checker)
 
-    # Process one label
-    status = template.write(dictionary, path, mode='save', backup=(not args.nobackup))
+    # Interpret the --dict input
+    dictionary = {}
+    for item in args.dict or []:
+        name, _, value = item.partition('=')
+        try:
+            value = eval(value)
+        except Exception:
+            pass
+        dictionary[name] = value
 
-    # Keep track of errors and warnings
-    errors += status[0]
+    # Process each path...
+    errors = 0
+    for k, path in enumerate(label_paths):
 
-# Report the error status if any error occurred
-if errors:
-    sys.exit(1)
+        # Process one label
+        status = template.write(dictionary, path, mode='save', backup=(not args.nobackup))
+
+        # Keep track of errors and warnings
+        errors += status[0]
+
+    # Report the error status if any error occurred
+    if errors:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
 
 ##########################################################################################

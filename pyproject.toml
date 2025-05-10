@@ -11,7 +11,8 @@ requires-python = ">=3.10"
 dependencies = [
     "rms-filecache",
     "rms-julian",
-    "rms-pdslogger"
+    "rms-pdslogger",
+    "rms-pdsparser"
 ]
 license = {text = "Apache-2.0"}
 maintainers = [
@@ -42,6 +43,7 @@ Issues = "https://github.com/SETI/rms-pdstemplate/issues"
 
 [project.scripts]
 tablelabel = "programs.tablelabel:main"
+quicklabel = "programs.quicklabel:main"
 
 [tool.setuptools]
 packages = ["pdstemplate", "programs"]
