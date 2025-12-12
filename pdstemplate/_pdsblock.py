@@ -146,6 +146,7 @@ class _PdsBlock(object):
         """
 
         if expression:
+#            print(expression)
             try:
                 return eval(expression, state.global_dict, state.local_dicts[-1])
 
@@ -217,6 +218,8 @@ class _PdsBlock(object):
             # Odd-numbered items are expressions
             else:
                 (expression, name, line) = item
+#                print(self.preprocessed)
+#                from IPython import embed; print('+++++++++++++'); embed()
                 value = self.evaluate_expression(expression, line, state)
 
                 if name and not _PdsBlock._is_error(value):

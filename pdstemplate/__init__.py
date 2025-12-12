@@ -857,7 +857,8 @@ class PdsTemplate:
             str: The basename of the filepath (the final filename).
         """
 
-        return os.path.basename(filepath)
+        return FCPath(filepath).name
+#        return os.path.basename(filepath)
 
     @staticmethod
     def BOOL(value, true='true', false='false'):
@@ -1055,6 +1056,7 @@ class PdsTemplate:
             int: The size in bytes of the file.
         """
 
+        filepath = FCPath(filepath).retrieve()
         return os.path.getsize(filepath)
 
     # From http://stackoverflow.com/questions/3431825/-
@@ -1069,6 +1071,7 @@ class PdsTemplate:
             str: The MD5 checksum of the file.
         """
 
+        filepath = FCPath(filepath).retrieve()
         blocksize = 65536
         with open(filepath, 'rb') as f:
             hasher = hashlib.md5()
@@ -1094,6 +1097,7 @@ class PdsTemplate:
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
+        filepath = FCPath(filepath).retrieve()
         printable = string.printable.encode('latin8')
         with open(filepath, 'rb') as f:
             count = 0
@@ -1125,6 +1129,9 @@ class PdsTemplate:
             `filepath` in the form "yyyy-mm-ddThh:mm:ss".
         """
 
+        filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
+                                               ## time, but it's better than a crash
+#        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
         return datetime.datetime.fromtimestamp(timestamp).isoformat()[:19]
 
@@ -1140,6 +1147,9 @@ class PdsTemplate:
             form "yyyy-mm-ddThh:mm:ssZ".
         """
 
+        filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
+                                               ## time, but it's better than a crash
+#        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
         try:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
@@ -1261,6 +1271,7 @@ class PdsTemplate:
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
+        filepath = FCPath(filepath).retrieve()
         max_bytes = 0
         with open(filepath, 'rb') as f:
             for line in f:
