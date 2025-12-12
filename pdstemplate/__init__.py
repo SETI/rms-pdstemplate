@@ -1130,8 +1130,8 @@ class PdsTemplate:
         """
 
         ##################################################################################
-        local_filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
-                                                     ## time, but it's better than a crash
+        local_filepath = FCPath(filepath).retrieve()
+        # Only warn for remote files where cached time is returned
         if local_filepath != filepath:
             filepath = local_filepath
             logger = get_logger()
@@ -1154,8 +1154,8 @@ class PdsTemplate:
         """
 
         ##################################################################################
-        local_filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
-                                                     ## time, but it's better than a crash
+        local_filepath = FCPath(filepath).retrieve()
+        # Only warn for remote files where cached time is returned
         if local_filepath != filepath:
             filepath = local_filepath
             logger = get_logger()
