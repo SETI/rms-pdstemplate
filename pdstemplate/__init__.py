@@ -1129,8 +1129,12 @@ class PdsTemplate:
             `filepath` in the form "yyyy-mm-ddThh:mm:ss".
         """
 
+        ##################################################################################
+        logger = get_logger()
+        logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
         filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
                                                ## time, but it's better than a crash
+        ##################################################################################
 #        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
         return datetime.datetime.fromtimestamp(timestamp).isoformat()[:19]
@@ -1147,8 +1151,12 @@ class PdsTemplate:
             form "yyyy-mm-ddThh:mm:ssZ".
         """
 
+        ##################################################################################
+        logger = get_logger()
+        logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
         filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
                                                ## time, but it's better than a crash
+        ##################################################################################
 #        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
         try:
