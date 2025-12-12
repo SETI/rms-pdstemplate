@@ -1130,10 +1130,12 @@ class PdsTemplate:
         """
 
         ##################################################################################
-        logger = get_logger()
-        logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
-        filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
-                                               ## time, but it's better than a crash
+        local_filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
+                                                     ## time, but it's better than a crash
+        if local_filepath != filepath:
+            filepath = local_filepath
+            logger = get_logger()
+            logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
         ##################################################################################
 #        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
@@ -1152,10 +1154,12 @@ class PdsTemplate:
         """
 
         ##################################################################################
-        logger = get_logger()
-        logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
-        filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
-                                               ## time, but it's better than a crash
+        local_filepath = FCPath(filepath).retrieve() ## this will just return the last retrieved
+                                                     ## time, but it's better than a crash
+        if local_filepath != filepath:
+            filepath = local_filepath
+            logger = get_logger()
+            logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
         ##################################################################################
 #        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
         timestamp = os.path.getmtime(filepath)
