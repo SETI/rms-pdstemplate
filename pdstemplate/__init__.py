@@ -851,14 +851,13 @@ class PdsTemplate:
         """The basename of `filepath`, with the leading directory path removed.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The basename of the filepath (the final filename).
         """
 
         return FCPath(filepath).name
-#        return os.path.basename(filepath)
 
     @staticmethod
     def BOOL(value, true='true', false='false'):
@@ -1050,14 +1049,14 @@ class PdsTemplate:
         """The size in bytes of the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             int: The size in bytes of the file.
         """
 
-        filepath = FCPath(filepath).retrieve()
-        return os.path.getsize(filepath)
+        local_path = FCPath(filepath).retrieve()
+        return os.path.getsize(local_path)
 
     # From http://stackoverflow.com/questions/3431825/-
     @staticmethod
@@ -1065,15 +1064,15 @@ class PdsTemplate:
         """The MD5 checksum of the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The MD5 checksum of the file.
         """
 
-        filepath = FCPath(filepath).retrieve()
+        local_path = FCPath(filepath).retrieve()
         blocksize = 65536
-        with open(filepath, 'rb') as f:
+        with open(local_path, 'rb') as f:
             hasher = hashlib.md5()
             buf = f.read(blocksize)
             while len(buf) > 0:
@@ -1088,7 +1087,7 @@ class PdsTemplate:
         """The number of records in the the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             int: The number of records in the file if it is ASCII;
@@ -1097,9 +1096,9 @@ class PdsTemplate:
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
-        filepath = FCPath(filepath).retrieve()
+        local_path = FCPath(filepath).retrieve()
         printable = string.printable.encode('latin8')
-        with open(filepath, 'rb') as f:
+        with open(local_path, 'rb') as f:
             count = 0
             asciis = 0
             non_asciis = 0
@@ -1122,23 +1121,14 @@ class PdsTemplate:
         """The modification time in the local time zone of a file.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The modification time in the local time zone of the file specified by
             `filepath` in the form "yyyy-mm-ddThh:mm:ss".
         """
 
-        ##################################################################################
-        local_filepath = FCPath(filepath).retrieve()
-        # Only warn for remote files where cached time is returned
-        if local_filepath != filepath:
-            filepath = local_filepath
-            logger = get_logger()
-            logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
-        ##################################################################################
-#        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
-        timestamp = os.path.getmtime(filepath)
+        timestamp = FCPath(filepath).modification_time()
         return datetime.datetime.fromtimestamp(timestamp).isoformat()[:19]
 
     @staticmethod
@@ -1146,23 +1136,14 @@ class PdsTemplate:
         """The UTC modification time of a file.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The UTC modification time of the file specified by `filepath` in the
             form "yyyy-mm-ddThh:mm:ssZ".
         """
 
-        ##################################################################################
-        local_filepath = FCPath(filepath).retrieve()
-        # Only warn for remote files where cached time is returned
-        if local_filepath != filepath:
-            filepath = local_filepath
-            logger = get_logger()
-            logger.warning(f'FILE_TIME reflects the cached time: {filepath}', force=True)
-        ##################################################################################
-#        timestamp = FCPath(filepath).stat().st_mtime  ### not implemented in FCPath
-        timestamp = os.path.getmtime(filepath)
+        timestamp = FCPath(filepath).modification_time()
         try:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
         except AttributeError:  # pragma: no cover
@@ -1278,14 +1259,14 @@ class PdsTemplate:
         terminators.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
         """
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
-        filepath = FCPath(filepath).retrieve()
+        local_path = FCPath(filepath).retrieve()
         max_bytes = 0
-        with open(filepath, 'rb') as f:
+        with open(local_path, 'rb') as f:
             for line in f:
                 max_bytes = max(max_bytes, len(line))
 
