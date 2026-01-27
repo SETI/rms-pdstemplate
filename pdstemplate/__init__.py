@@ -1078,7 +1078,6 @@ class PdsTemplate:
                 hasher.update(buf)
                 buf = f.read(blocksize)
 
-        f.close()
         return hasher.hexdigest()
 
     @staticmethod
@@ -1260,7 +1259,7 @@ class PdsTemplate:
             filepath (Path | FCPath | str): The filepath.
         """
 
-        # We intentionally open this in non-binary mode so we don't have to contend with
+        # We intentionally open this in binary mode so we don't have to contend with
         # line terminator issues.
         max_bytes = 0
         with FCPath(filepath).open('rb') as f:
