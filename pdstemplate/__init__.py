@@ -1070,9 +1070,8 @@ class PdsTemplate:
             str: The MD5 checksum of the file.
         """
 
-        local_path = FCPath(filepath).retrieve()
         blocksize = 65536
-        with open(local_path, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             hasher = hashlib.md5()
             buf = f.read(blocksize)
             while len(buf) > 0:
@@ -1096,9 +1095,8 @@ class PdsTemplate:
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
-        local_path = FCPath(filepath).retrieve()
         printable = string.printable.encode('latin8')
-        with open(local_path, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             count = 0
             asciis = 0
             non_asciis = 0
@@ -1264,9 +1262,8 @@ class PdsTemplate:
 
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
-        local_path = FCPath(filepath).retrieve()
         max_bytes = 0
-        with open(local_path, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             for line in f:
                 max_bytes = max(max_bytes, len(line))
 
