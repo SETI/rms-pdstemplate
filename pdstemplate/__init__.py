@@ -851,13 +851,13 @@ class PdsTemplate:
         """The basename of `filepath`, with the leading directory path removed.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The basename of the filepath (the final filename).
         """
 
-        return os.path.basename(filepath)
+        return FCPath(filepath).name
 
     @staticmethod
     def BOOL(value, true='true', false='false'):
@@ -1049,13 +1049,14 @@ class PdsTemplate:
         """The size in bytes of the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             int: The size in bytes of the file.
         """
 
-        return os.path.getsize(filepath)
+        local_path = FCPath(filepath).retrieve()
+        return os.path.getsize(local_path)
 
     # From http://stackoverflow.com/questions/3431825/-
     @staticmethod
@@ -1063,21 +1064,20 @@ class PdsTemplate:
         """The MD5 checksum of the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The MD5 checksum of the file.
         """
 
         blocksize = 65536
-        with open(filepath, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             hasher = hashlib.md5()
             buf = f.read(blocksize)
             while len(buf) > 0:
                 hasher.update(buf)
                 buf = f.read(blocksize)
 
-        f.close()
         return hasher.hexdigest()
 
     @staticmethod
@@ -1085,7 +1085,7 @@ class PdsTemplate:
         """The number of records in the the file specified by `filepath`.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             int: The number of records in the file if it is ASCII;
@@ -1095,7 +1095,7 @@ class PdsTemplate:
         # We intentionally open this in non-binary mode so we don't have to contend with
         # line terminator issues.
         printable = string.printable.encode('latin8')
-        with open(filepath, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             count = 0
             asciis = 0
             non_asciis = 0
@@ -1118,14 +1118,14 @@ class PdsTemplate:
         """The modification time in the local time zone of a file.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The modification time in the local time zone of the file specified by
             `filepath` in the form "yyyy-mm-ddThh:mm:ss".
         """
 
-        timestamp = os.path.getmtime(filepath)
+        timestamp = FCPath(filepath).modification_time()
         return datetime.datetime.fromtimestamp(timestamp).isoformat()[:19]
 
     @staticmethod
@@ -1133,14 +1133,14 @@ class PdsTemplate:
         """The UTC modification time of a file.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
 
         Returns:
             str: The UTC modification time of the file specified by `filepath` in the
             form "yyyy-mm-ddThh:mm:ssZ".
         """
 
-        timestamp = os.path.getmtime(filepath)
+        timestamp = FCPath(filepath).modification_time()
         try:
             utc_dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
         except AttributeError:  # pragma: no cover
@@ -1256,13 +1256,13 @@ class PdsTemplate:
         terminators.
 
         Parameters:
-            filepath (str): The filepath.
+            filepath (Path | FCPath | str): The filepath.
         """
 
-        # We intentionally open this in non-binary mode so we don't have to contend with
+        # We intentionally open this in binary mode so we don't have to contend with
         # line terminator issues.
         max_bytes = 0
-        with open(filepath, 'rb') as f:
+        with FCPath(filepath).open('rb') as f:
             for line in f:
                 max_bytes = max(max_bytes, len(line))
 
