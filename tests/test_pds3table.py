@@ -287,8 +287,20 @@ class Test_Pds3Table_units(unittest.TestCase):
         self.assertEqual(Pds3Table._get_valid_unit("'N/A'"), "'N/A'")
         self.assertEqual(Pds3Table._get_valid_unit("'KM/S'"), "km/s")
 
+        # Angular resolution per pixel, alongside the existing km/pixel,
+        # m/pixel, bit/pixel and arcsec/pixel entries.
+        self.assertEqual(Pds3Table._get_valid_unit('deg/pixel'), 'deg/pixel')
+        self.assertEqual(Pds3Table._get_valid_unit('DEG/PIXEL'), 'deg/pixel')
+        self.assertEqual(Pds3Table._get_valid_unit('DEGREES/PIXEL'), 'deg/pixel')
+        self.assertEqual(Pds3Table._get_valid_unit('deg/pix'), 'deg/pixel')
+        # The neighbouring degree units are unaffected.
+        self.assertEqual(Pds3Table._get_valid_unit('deg/day'), 'deg/day')
+        self.assertEqual(Pds3Table._get_valid_unit('DEG/S'), 'deg/s')
+        self.assertEqual(Pds3Table._get_valid_unit('pixel/deg'), 'pixel/deg')
+
         self.assertEqual(Pds3Table._unit_is_valid('METERS/SECOND'), True)
         self.assertEqual(Pds3Table._unit_is_valid('mb/sec'), False)
+        self.assertEqual(Pds3Table._unit_is_valid('deg/pixel'), True)
 
 class Test_Pds3Table_format_is_valid(unittest.TestCase):
 
